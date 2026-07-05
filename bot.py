@@ -27,27 +27,41 @@ CORS(app)
 app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# ==========================================
-# 🗄️ LOCAL DATABASE (Termux Storage)
-# ==========================================
-DB_FILE = "local_database.json"
+# database 
+
+import os
+from pymongo import MongoClient
+
+# MongoDB Setup (URI Hugging Face Secrets se aayega)
+MONGO_URI = os.environ.get("MONGO_URI") 
+client = MongoClient(MONGO_URI)
+db = client['bseb_quiz_db']
+db_collection = db['app_data']
 
 def load_db():
-    if not os.path.exists(DB_FILE):
-        with open(DB_FILE, "w") as f:
-            json.dump({"users": {}, "questions": [], "logs": []}, f)
     try:
-        with open(DB_FILE, "r") as f:
-            return json.load(f)
-    except:
+        doc = db_collection.find_one({"_id": "main_data"})
+        if doc and "data" in doc:
+            return doc["data"]
+        else:
+            return {"users": {}, "questions": [], "logs": []}
+    except Exception as e:
+        print(f"DB Load Error: {e}")
         return {"users": {}, "questions": [], "logs": []}
 
 def save_db(db_data):
-    with open(DB_FILE, "w") as f:
-        json.dump(db_data, f, indent=4)
+    try:
+        db_collection.update_one(
+            {"_id": "main_data"}, 
+            {"$set": {"data": db_data}}, 
+            upsert=True
+        )
+    except Exception as e:
+        print(f"DB Save Error: {e}")
 
 db_data = load_db()
-db_connected = True 
+db_connected = True
+
 
 # ==========================================
 # 🔐 SUBSCRIPTION CHECK (STRICT MODE)
