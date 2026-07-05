@@ -12,8 +12,12 @@ from fpdf import FPDF
 # ==========================================
 # ⚙️ CONFIGURATION
 # ==========================================
-BOT_TOKEN = ""
-WEB_APP_URL = "https://ab6a7b637518d928-146-70-246-132.serveousercontent.com" # Apna current localhost.run wala link yahan daalna
+# ==========================================
+# ⚙️ CONFIGURATION
+# ==========================================
+BOT_TOKEN = os.environ.get("BOT_TOKEN") # HF Secrets se lega
+# Aapka HF Space link kuch is tarah hoga:
+WEB_APP_URL = "https://aapkausername-spacename.hf.space" 
 ADMIN_ID = 8718760365
 
 # Channel Details for Verification
@@ -353,8 +357,9 @@ def delete_item():
         save_db(db_data)
         return jsonify({"status": "deleted"})
     except: return jsonify({"error": "Error"})
-
 if __name__ == "__main__":
-    t = threading.Thread(target=lambda: socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), allow_unsafe_werkzeug=True))
+    # HF Spaces ke liye port 7860 fix karna zaroori hai
+    t = threading.Thread(target=lambda: socketio.run(app, host="0.0.0.0", port=7860, allow_unsafe_werkzeug=True))
     t.start()
     bot.infinity_polling()
+    
