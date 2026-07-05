@@ -12,7 +12,7 @@ from fpdf import FPDF
 # ==========================================
 # ⚙️ CONFIGURATION
 # ==========================================
-BOT_TOKEN = "8952286697:AAEcHTrMjiFzXc9LzqjPm9ViDz9jhtv7V0Q"
+BOT_TOKEN = ""
 WEB_APP_URL = "https://ab6a7b637518d928-146-70-246-132.serveousercontent.com" # Apna current localhost.run wala link yahan daalna
 ADMIN_ID = 8718760365
 
