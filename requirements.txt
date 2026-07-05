@@ -1,0 +1,6 @@
+pyTelegramBotAPI
+Flask
+Flask-SocketIO
+Flask-CORS
+fpdf
+pymongo
