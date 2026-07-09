@@ -198,6 +198,7 @@ def change_lang(m):
     bot.send_message(m.chat.id, "⚙️ **Update Language / माध्यम बदलें:**", reply_markup=markup, parse_mode="Markdown")
 
 
+@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
 def callback_check(call):
     uid = call.from_user.id
     if check_membership(uid):
@@ -260,7 +261,7 @@ def handle_docs(message):
             bot.reply_to(message, "✅ **Restore Successful!**\nData wapas aa gaya hai.")
             return
         
-              meta, parsed_q = parse_txt_file(content)
+        meta, parsed_q = parse_txt_file(content)
         if not meta: 
             bot.reply_to(message, parsed_q) 
             return
