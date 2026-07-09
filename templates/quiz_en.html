@@ -432,7 +432,7 @@
         }
 
         function sync(addScore=0) {
-            fetch('/api/get_data').then(r=>r.json()).then(d=> fullData=d).catch(e => console.log("DB Get Error", e));
+            fetch('/api/get_data?lang=hi').then(r=>r.json()).then(d=> fullData=d).catch(e => console.log("DB Get Error", e));
             fetch('/api/user/sync', {
                 method:'POST', 
                 headers:{'Content-Type':'application/json'},
