@@ -95,14 +95,15 @@ def calculate_grade_stats(xp):
 
 def parse_txt_file(content):
     lines = content.splitlines()
-    meta = {"path": [], "mode": "normal"} 
+    meta = {"path": [], "mode": "normal", "medium": "hi"} # NAYA: Default hindi
     questions = []
     
     for line in lines[:10]:
         lower = line.lower()
+        if lower.startswith("medium:"): 
+            meta["medium"] = line.split(":", 1)[1].strip().lower()
         if lower.startswith("path:"): 
             raw_path = line.split(":", 1)[1].strip()
-            # Path ko '/' ke hisaab se todkar list banayega
             meta["path"] = [p.strip() for p in raw_path.split("/") if p.strip()]
         if lower.startswith("mode:"): 
             meta["mode"] = line.split(":", 1)[1].strip().lower() 
@@ -111,7 +112,7 @@ def parse_txt_file(content):
         return None, "❌ Header Missing! Please use 'Path: Folder1 / Folder2 ...'"
         
     for line in lines:
-        if "|" in line and "PATH:" not in line.upper():
+        if "|" in line and not line.upper().startswith(("PATH:", "MEDIUM:", "MODE:")):
             parts = [p.strip() for p in line.split("|")]
             if len(parts) >= 6:
                 try:
@@ -120,6 +121,7 @@ def parse_txt_file(content):
                         questions.append({"q": parts[0], "opts": parts[1:5], "ans": ans})
                 except: pass
     return meta, questions
+
 
 # ============================
 # 🤖 BOT HANDLERS
@@ -261,23 +263,21 @@ def handle_docs(message):
             bot.reply_to(message, "✅ **Restore Successful!**\nData wapas aa gaya hai.")
             return
         
-        meta, parsed_q = parse_txt_file(content)
+            meta, parsed_q = parse_txt_file(content)
         if not meta: 
             bot.reply_to(message, parsed_q) 
             return
 
-        # Purane questions jo same Exact Path ke hain unhe remove karega
-        db_data['questions'] = [q for q in db_data.get('questions', []) if q.get('path') != meta['path']]
+        # NAYA: Path aur Medium dono check karke purana delete karega
+        db_data['questions'] = [q for q in db_data.get('questions', []) if not (q.get('path') == meta['path'] and q.get('medium', 'hi') == meta['medium'])]
         
-        new_q = {"path": meta['path'], "mode": meta['mode'], "data": parsed_q}
+        # NAYA: Naye data me medium bhi save karega
+        new_q = {"path": meta['path'], "mode": meta['mode'], "medium": meta['medium'], "data": parsed_q}
         db_data['questions'].append(new_q)
         save_db(db_data)
         
         path_str = " ➔ ".join(meta['path'])
-        bot.reply_to(message, f"☁️ Saved in: {path_str}\n({len(parsed_q)} Qs)")
-        
-    except Exception as e:
-        bot.reply_to(message, f"Error: {e}")
+        bot.reply_to(message, f"☁️ Saved in [{meta['medium'].upper()}]: {path_str}\n({len(parsed_q)} Qs)")
 
 
 # ==========================================
@@ -297,8 +297,14 @@ def index():
 
 @app.route('/api/get_data')
 def get_data():
+    req_lang = request.args.get('lang', 'hi') # NAYA: Frontend se aayi language
+    
     tree = {}
     for doc in db_data.get('questions', []):
+        # NAYA: Agar medium match nahi karta toh question skip kar dega
+        if doc.get('medium', 'hi') != req_lang:
+            continue
+            
         path = doc.get('path', [])
         if not path: continue
         
@@ -312,6 +318,7 @@ def get_data():
         current_level[last_node] = {"data": doc['data'], "mode": doc.get('mode', 'normal')}
         
     return jsonify(tree)
+
 
 # Note: /api/user/sync aur /api/leaderboard wale APIs ko waisa hi chhod dena hai (unme koi change nahi hai).
 # Uske niche /api/admin/delete wale ko replace karna hai:
