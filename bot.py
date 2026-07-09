@@ -17,7 +17,9 @@ from fpdf import FPDF
 # ==========================================
 BOT_TOKEN = os.environ.get("BOT_TOKEN") # HF Secrets se lega
 # Aapka HF Space link kuch is tarah hoga:
-WEB_APP_URL = "https://aapkausername-spacename.hf.space" 
+# Render ka URL environment variables se lega
+WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://aapka-app-name.onrender.com") 
+
 ADMIN_ID = 8718760365
 
 # Channel Details for Verification
@@ -357,9 +359,12 @@ def delete_item():
         save_db(db_data)
         return jsonify({"status": "deleted"})
     except: return jsonify({"error": "Error"})
+
+
 if __name__ == "__main__":
-    # HF Spaces ke liye port 7860 fix karna zaroori hai
-    t = threading.Thread(target=lambda: socketio.run(app, host="0.0.0.0", port=7860, allow_unsafe_werkzeug=True))
+    # Render ke liye dynamic port assign karna zaroori hai
+    port = int(os.environ.get("PORT", 10000))
+    t = threading.Thread(target=lambda: socketio.run(app, host="0.0.0.0", port=port, allow_unsafe_werkzeug=True))
     t.start()
     bot.infinity_polling()
     
