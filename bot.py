@@ -91,23 +91,27 @@ def calculate_grade_stats(xp):
         temp_xp -= cost; level += 1; cost += 20
     percent = (temp_xp / cost) * 100
     return {"grade": level, "current_xp": temp_xp, "req_xp": cost, "percent": min(percent, 100)}
+#77777
 
 def parse_txt_file(content):
     lines = content.splitlines()
-    meta = {"source": None, "type": None, "chapter": None, "mode": "normal"} 
+    meta = {"path": [], "mode": "normal"} 
     questions = []
-    for line in lines[:15]:
+    
+    for line in lines[:10]:
         lower = line.lower()
-        if "source:" in lower: meta["source"] = line.split(":",1)[1].strip()
-        if "type:" in lower: meta["type"] = line.split(":",1)[1].strip()
-        if "chapter:" in lower: meta["chapter"] = line.split(":",1)[1].strip()
-        if "mode:" in lower: meta["mode"] = line.split(":",1)[1].strip().lower() 
-        
-    if not meta["source"] or not meta["type"] or not meta["chapter"]: 
-        return None, "❌ Header Missing!"
+        if lower.startswith("path:"): 
+            raw_path = line.split(":", 1)[1].strip()
+            # Path ko '/' ke hisaab se todkar list banayega
+            meta["path"] = [p.strip() for p in raw_path.split("/") if p.strip()]
+        if lower.startswith("mode:"): 
+            meta["mode"] = line.split(":", 1)[1].strip().lower() 
+            
+    if not meta["path"]: 
+        return None, "❌ Header Missing! Please use 'Path: Folder1 / Folder2 ...'"
         
     for line in lines:
-        if "|" in line and "SOURCE:" not in line:
+        if "|" in line and "PATH:" not in line.upper():
             parts = [p.strip() for p in line.split("|")]
             if len(parts) >= 6:
                 try:
@@ -117,44 +121,83 @@ def parse_txt_file(content):
                 except: pass
     return meta, questions
 
-# ==========================================
+# ============================
 # 🤖 BOT HANDLERS
 # ==========================================
-def send_welcome_menu(chat_id, first_name, user_id):
+
+
+
+#777777
+
+def send_welcome_menu(chat_id, first_name, user_id, lang):
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🧬 START 🧬", web_app=WebAppInfo(url=WEB_APP_URL)))
+    
+    # Language ke hisaab se Web App URL mein query add kar rahe hain
+    app_url = f"{WEB_APP_URL}?lang={lang}"
+    btn_text = "🧬 अभ्यास शुरू करें 🧬" if lang == 'hi' else "🧬 START 🧬"
+    
+    markup.add(InlineKeyboardButton(btn_text, web_app=WebAppInfo(url=app_url)))
     markup.row(
         InlineKeyboardButton("📢 𝗢𝗳𝗳𝗶𝗰𝗶𝗮𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", url=CHANNEL_LINK1),
         InlineKeyboardButton("👨‍⚕️ 𝗛𝗲𝗹𝗽 𝗖𝗲𝗻𝘁𝗲𝗿", url="https://t.me/errorkidk")
     )
+    
     image_url = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" 
-    caption = f"🏆 <b>BSEB QUIZ PRO 🧾 </b> 🏆\n\n" \
+    caption = f"🏆 <b>BSEB QUIZ PRO 🧾</b> 🏆\n\n" \
               f"<blockquote>👤 <b>User:</b> {first_name}\n" \
               f"🆔 <b>ID:</b> <code>{user_id}</code>\n" \
-              f"👑 <b>Status:</b> Premium Access</blockquote>\n" \
+              f"👑 <b>Status:</b> Premium Access\n" \
+              f"🌐 <b>Medium:</b> {'Hindi' if lang == 'hi' else 'English'}</blockquote>\n" \
               f"<blockquote>💬 <b> BOT LIVE. </b>\n" \
-              f"click below to start our mini app.</blockquote>"
+              f"Click below to start our mini app.</blockquote>"
     try:
         bot.send_photo(chat_id, photo=image_url, caption=caption, reply_markup=markup, parse_mode="HTML")
-    except Exception as e:
+    except:
         bot.send_message(chat_id, caption, reply_markup=markup, parse_mode="HTML")
 
 @bot.message_handler(commands=['start'])
 def start(m):
-    uid = m.from_user.id
-    if not check_membership(uid):
+    uid = str(m.from_user.id)
+    if not check_membership(int(uid)):
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("📢 Join Channel (Must)", url=CHANNEL_LINK))
         markup.add(InlineKeyboardButton("🔄 Check Status", callback_data="check_sub"))
-        bot.send_message(
-            m.chat.id, 
-            "⚠️ <b>Access Denied!</b>\n\nYou must join our official channel to use this bot.\nJoin and click 'Check Status'.", 
-            reply_markup=markup, parse_mode="HTML"
-        )
+        bot.send_message(m.chat.id, "⚠️ <b>Access Denied!</b>\nYou must join our channel.", reply_markup=markup, parse_mode="HTML")
         return
-    send_welcome_menu(m.chat.id, m.from_user.first_name, uid)
+        
+    # Check if user language is saved
+    user = db_data['users'].get(uid, {})
+    if 'medium' not in user:
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
+        markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
+        bot.send_message(m.chat.id, "🌐 **Choose your Language / अपनी भाषा चुनें:**", reply_markup=markup, parse_mode="Markdown")
+        return
+        
+    send_welcome_menu(m.chat.id, m.from_user.first_name, uid, user['medium'])
 
-@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
+@bot.callback_query_handler(func=lambda call: call.data.startswith("lang_"))
+def set_language(call):
+    uid = str(call.from_user.id)
+    lang = call.data.split("_")[1] # 'hi' or 'en'
+    
+    if uid not in db_data['users']:
+        db_data['users'][uid] = {"_id": uid, "name": call.from_user.first_name, "xp": 0, "mistakes": []}
+        
+    db_data['users'][uid]['medium'] = lang
+    save_db(db_data)
+    
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    send_welcome_menu(call.message.chat.id, call.from_user.first_name, uid, lang)
+
+@bot.message_handler(commands=['language', 'settings'])
+def change_lang(m):
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
+    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
+    bot.send_message(m.chat.id, "⚙️ **Update Language / माध्यम बदलें:**", reply_markup=markup, parse_mode="Markdown")
+
+
 def callback_check(call):
     uid = call.from_user.id
     if check_membership(uid):
@@ -217,38 +260,83 @@ def handle_docs(message):
             bot.reply_to(message, "✅ **Restore Successful!**\nData wapas aa gaya hai.")
             return
         
-        meta, parsed_q = parse_txt_file(content)
+              meta, parsed_q = parse_txt_file(content)
         if not meta: 
             bot.reply_to(message, parsed_q) 
             return
 
-        # Remove old questions of same chapter
-        db_data['questions'] = [q for q in db_data['questions'] if not (q['source'] == meta['source'] and q['type'] == meta['type'] and q['chapter'] == meta['chapter'])]
+        # Purane questions jo same Exact Path ke hain unhe remove karega
+        db_data['questions'] = [q for q in db_data.get('questions', []) if q.get('path') != meta['path']]
         
-        new_q = {"source": meta['source'], "type": meta['type'], "chapter": meta['chapter'], "mode": meta['mode'], "data": parsed_q}
+        new_q = {"path": meta['path'], "mode": meta['mode'], "data": parsed_q}
         db_data['questions'].append(new_q)
         save_db(db_data)
         
-        bot.reply_to(message, f"☁️ Saved: {meta['chapter']} ({len(parsed_q)} Qs)")
+        path_str = " ➔ ".join(meta['path'])
+        bot.reply_to(message, f"☁️ Saved in: {path_str}\n({len(parsed_q)} Qs)")
+        
     except Exception as e:
         bot.reply_to(message, f"Error: {e}")
+
+
+# ==========================================
+# 🌐 API ROUTES
+# ==========================================
 
 # ==========================================
 # 🌐 API ROUTES
 # ==========================================
 @app.route('/')
-def index(): return render_template('quiz.html')
+def index(): 
+    # URL query string se language uthayega (e.g., ?lang=hi)
+    lang = request.args.get('lang', 'en')
+    if lang == 'hi':
+        return render_template('quiz_hi.html')
+    return render_template('quiz_en.html')
 
 @app.route('/api/get_data')
 def get_data():
     tree = {}
-    for doc in db_data['questions']:
-        src, typ, chap = doc['source'], doc['type'], doc['chapter']
-        mode = doc.get('mode', 'normal') 
-        if src not in tree: tree[src] = {}
-        if typ not in tree[src]: tree[src][typ] = {}
-        tree[src][typ][chap] = {"data": doc['data'], "mode": mode} 
+    for doc in db_data.get('questions', []):
+        path = doc.get('path', [])
+        if not path: continue
+        
+        current_level = tree
+        for p in path[:-1]:
+            if p not in current_level:
+                current_level[p] = {}
+            current_level = current_level[p]
+            
+        last_node = path[-1]
+        current_level[last_node] = {"data": doc['data'], "mode": doc.get('mode', 'normal')}
+        
     return jsonify(tree)
+
+# Note: /api/user/sync aur /api/leaderboard wale APIs ko waisa hi chhod dena hai (unme koi change nahi hai).
+# Uske niche /api/admin/delete wale ko replace karna hai:
+
+@app.route('/api/admin/delete', methods=['POST'])
+def delete_item():
+    data = request.json
+    if str(data.get('uid')) != str(ADMIN_ID): return jsonify({"error": "Unauthorized"})
+    
+    # Frontend se aya hua rasta aur aakhiri target folder
+    target_path = data.get('path', []) + [data.get('target')]
+    
+    try:
+        new_questions = []
+        for q in db_data.get('questions', []):
+            q_path = q.get('path', [])
+            # Agar folder path match karta hai, toh uske saare sub-folders delete ho jayenge
+            if q_path[:len(target_path)] == target_path:
+                continue 
+            new_questions.append(q)
+                
+        db_data['questions'] = new_questions
+        save_db(db_data)
+        return jsonify({"status": "deleted"})
+    except Exception as e: 
+        return jsonify({"error": str(e)})
 
 @app.route('/api/user/sync', methods=['POST'])
 def sync_user():
@@ -344,21 +432,6 @@ def leaderboard(filter):
     user_rank = next((u for u in top_100 if u['uid'] == uid_req), None)
     return jsonify({"top": top_100, "user": user_rank})
 
-@app.route('/api/admin/delete', methods=['POST'])
-def delete_item():
-    data = request.json
-    if str(data.get('uid')) != str(ADMIN_ID): return jsonify({"error": "Unauthorized"})
-    path, target = data.get('path', []), data.get('target')
-    try:
-        if len(path) == 0: 
-            db_data['questions'] = [q for q in db_data['questions'] if q['source'] != target]
-        elif len(path) == 1: 
-            db_data['questions'] = [q for q in db_data['questions'] if not (q['source'] == path[0] and q['type'] == target)]
-        elif len(path) == 2: 
-            db_data['questions'] = [q for q in db_data['questions'] if not (q['source'] == path[0] and q['type'] == path[1] and q['chapter'] == target)]
-        save_db(db_data)
-        return jsonify({"status": "deleted"})
-    except: return jsonify({"error": "Error"})
 
 
 if __name__ == "__main__":
