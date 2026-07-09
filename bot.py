@@ -280,9 +280,9 @@ def handle_docs(message):
         bot.reply_to(message, f"☁️ Saved in [{meta['medium'].upper()}]: {path_str}\n({len(parsed_q)} Qs)")
 
 
-# ==========================================
-# 🌐 API ROUTES
-# ==========================================
+
+    except Exception as e:
+        bot.reply_to(message, f"Error: {e}")
 
 # ==========================================
 # 🌐 API ROUTES
