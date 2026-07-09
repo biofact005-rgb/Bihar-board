@@ -263,7 +263,8 @@ def handle_docs(message):
             bot.reply_to(message, "✅ **Restore Successful!**\nData wapas aa gaya hai.")
             return
         
-            meta, parsed_q = parse_txt_file(content)
+        # Yahan spacing bilkul sahi set ki gayi hai
+        meta, parsed_q = parse_txt_file(content)
         if not meta: 
             bot.reply_to(message, parsed_q) 
             return
@@ -278,11 +279,10 @@ def handle_docs(message):
         
         path_str = " ➔ ".join(meta['path'])
         bot.reply_to(message, f"☁️ Saved in [{meta['medium'].upper()}]: {path_str}\n({len(parsed_q)} Qs)")
-
-
-
+        
     except Exception as e:
         bot.reply_to(message, f"Error: {e}")
+
 
 # ==========================================
 # 🌐 API ROUTES
