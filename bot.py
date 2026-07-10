@@ -25,7 +25,7 @@ ADMIN_ID = 8718760365
 # Channel Details for Verification
 CHANNEL_USERNAME = "@errorkid_05" 
 CHANNEL_LINK = "https://t.me/errorkid_05"
-CHANNEL_LINK1 = "https://t.me/+xHIueY41U3syODE1"
+CHANNEL_LINK1 = "https://t.me/+H3-K7T29hVdhYzY1"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
