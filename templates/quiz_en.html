@@ -260,6 +260,9 @@
         <div id="admin-btn" style="display:none; text-align:center; margin-top:20px;">
             <button onclick="mode='admin'; nav(['Class 12']);" style="background:#222; color:#fff; border:1px solid #444; padding:8px 20px; border-radius:20px; font-size:0.7rem;">ADMIN PANEL</button>
         </div>
+        <div style="text-align:center; margin-top:40px; font-size:0.75rem; color:#555; font-family:'Orbitron'; letter-spacing: 2px;">
+    </> DEVELOPED WITH ⚡ BY ABHIJEET
+        </div>
     </div>
 
     <div id="lb-screen" class="screen">
@@ -405,7 +408,11 @@
 
         if(document.getElementById('u-name')) { document.getElementById('u-name').innerText = user.first_name; }
         if(user.photo_url && document.getElementById('u-pic')) { document.getElementById('u-pic').src = user.photo_url; }
-        if(user.id == 8557964907 && document.getElementById('admin-btn')) { document.getElementById('admin-btn').style.display='block'; }
+        // Dono ko string mein convert karke compare karenge
+if(String(user.id) == "8718760365" && document.getElementById('admin-btn')) { 
+    document.getElementById('admin-btn').style.display='block'; 
+}
+        
         if(document.getElementById('tog-sound')) { document.getElementById('tog-sound').checked = settings.sound; }
         if(document.getElementById('tog-vib')) { document.getElementById('tog-vib').checked = settings.vib; }
 
