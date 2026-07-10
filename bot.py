@@ -130,11 +130,9 @@ def parse_txt_file(content):
 
 
 #777777
-
 def send_welcome_menu(chat_id, first_name, user_id, lang):
     markup = InlineKeyboardMarkup()
     
-    # Language ke hisaab se Web App URL mein query add kar rahe hain
     app_url = f"{WEB_APP_URL}?lang={lang}"
     btn_text = "🧬 अभ्यास शुरू करें 🧬" if lang == 'hi' else "🧬 START 🧬"
     
@@ -144,7 +142,21 @@ def send_welcome_menu(chat_id, first_name, user_id, lang):
         InlineKeyboardButton("👨‍⚕️ 𝗛𝗲𝗹𝗽 𝗖𝗲𝗻𝘁𝗲𝗿", url="https://t.me/errorkidk")
     )
     
-    image_url = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" 
+    lang_btn_text = "⚙️ भाषा बदलें (Change Lang)" if lang == 'hi' else "⚙️ Change Language"
+    markup.add(InlineKeyboardButton(lang_btn_text, callback_data="show_lang_menu"))
+    
+    # 👇 NAYA LOGIC: User ka profile photo fetch karna
+    try:
+        photos = bot.get_user_profile_photos(user_id)
+        if photos.total_count > 0:
+            # Sabse latest aur high-quality photo ka file_id nikalna
+            media = photos.photos[0][-1].file_id
+        else:
+            # Agar user ne DP hide ki hai ya nahi lagayi hai, toh ye default image jayegi
+            media = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+    except Exception as e:
+        media = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+
     caption = f"🏆 <b>BSEB QUIZ PRO 🧾</b> 🏆\n\n" \
               f"<blockquote>👤 <b>User:</b> {first_name}\n" \
               f"🆔 <b>ID:</b> <code>{user_id}</code>\n" \
@@ -153,9 +165,10 @@ def send_welcome_menu(chat_id, first_name, user_id, lang):
               f"<blockquote>💬 <b> BOT LIVE. </b>\n" \
               f"Click below to start our mini app.</blockquote>"
     try:
-        bot.send_photo(chat_id, photo=image_url, caption=caption, reply_markup=markup, parse_mode="HTML")
+        bot.send_photo(chat_id, photo=media, caption=caption, reply_markup=markup, parse_mode="HTML")
     except:
         bot.send_message(chat_id, caption, reply_markup=markup, parse_mode="HTML")
+
 
 @bot.message_handler(commands=['start'])
 def start(m):
