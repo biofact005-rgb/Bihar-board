@@ -4,3 +4,5 @@ Flask-SocketIO
 Flask-CORS
 fpdf2
 pymongo
+apscheduler
+pytz
