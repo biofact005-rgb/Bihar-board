@@ -686,16 +686,18 @@
             let x = event ? event.clientX : window.innerWidth / 2; let y = event ? event.clientY : window.innerHeight / 2;
 
             if(i === q.ans) {
-                if(btn) btn.classList.add('correct'); comboStreak++; score += 1;
+                if(btn) btn.classList.add('correct'); comboStreak++; 
+                score += 2; // NAYA: +2 marks for correct answer
                 if(comboStreak >= 3) {
-                    document.getElementById('main-q-box').classList.add('combo-glow'); showFloatingText(x, y-40, `🔥 COMBO x${comboStreak}! +1`, "win");
-                } else { showFloatingText(x, y, "+1", "win"); }
+                    document.getElementById('main-q-box').classList.add('combo-glow'); showFloatingText(x, y-40, `🔥 COMBO x${comboStreak}! +2`, "win");
+                } else { showFloatingText(x, y, "+2", "win"); }
                 if(settings.vib && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
                 if(mode==='mistake') solvedMistakes.push(q.q);
             } else {
                 if(btn) btn.classList.add('wrong'); if(allOptions[q.ans]) allOptions[q.ans].classList.add('correct');
                 comboStreak = 0; if(document.getElementById('main-q-box')) document.getElementById('main-q-box').classList.remove('combo-glow');
-                score -= 1; wrongCount++; showFloatingText(x, y, "-1", "loss");
+                score -= 0; // NAYA: No negative marking (-0)
+                wrongCount++; showFloatingText(x, y, "0", "loss");
                 if(settings.sound) sfxErr.play(); if(settings.vib && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
                 if(mode!=='mistake' && i !== -1) mistakes.push(q);
             }
