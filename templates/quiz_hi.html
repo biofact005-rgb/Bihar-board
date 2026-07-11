@@ -381,6 +381,9 @@
         <div class="dock-item" onclick="switchTheme('prof'); tab('profile', this)">👤</div>
     </div>
 
+    <!-- Baki upar ka HTML/CSS same rahega -->
+<!-- Niche jaha se <script> shuru hota hai waha se in functions ko replace kar lijiye -->
+
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand(); 
@@ -422,16 +425,33 @@
             setTimeout(() => { el.remove(); }, 1000);
         }
 
+        // NAYA 3: Transition logic update (Smart Door and Fade)
         function transitionTo(p, action) {
-            let door = document.getElementById('door-overlay');
-            if(door) door.classList.add('door-closed');
-            setTimeout(() => {
-                if(action === 'back') { back(); } else { nav(p); }
-                setTimeout(() => { if(door) door.classList.remove('door-closed'); }, 500);
-            }, 600);
+            let isDoorTransition = (action !== 'back') || (action === 'back' && path.length <= 1);
+            
+            if (isDoorTransition) {
+                let door = document.getElementById('door-overlay');
+                if(door) door.classList.add('door-closed');
+                setTimeout(() => {
+                    if(action === 'back') { back(); } else { nav(p); }
+                    setTimeout(() => { if(door) door.classList.remove('door-closed'); }, 500);
+                }, 600);
+            } else {
+                // Sub-folder back navigation (fade)
+                let folderScreen = document.getElementById('folder-screen');
+                folderScreen.style.transition = 'opacity 0.2s';
+                folderScreen.style.opacity = '0';
+                setTimeout(() => {
+                    back();
+                    folderScreen.style.opacity = '1';
+                    setTimeout(() => { folderScreen.style.transition = ''; }, 200);
+                }, 200);
+            }
         }
 
+        // --- BAKI SAARA SCRIPT SAME WAISA HI RAHEGA ---
         function sync(addScore=0) {
+            
             fetch('/api/get_data?lang=hi').then(r=>r.json()).then(d=> fullData=d).catch(e => console.log("DB Get Error", e));
             fetch('/api/user/sync', {
                 method:'POST', 
