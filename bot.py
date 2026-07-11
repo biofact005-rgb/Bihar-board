@@ -8,7 +8,8 @@ import threading, os, time
 import json
 from datetime import datetime
 from fpdf import FPDF
-import urllib.request # NAYA: PDF font download ke liye
+import urllib.request 
+import tempfile # NAYA: Cloud me save karne ke liye
 
 # ==========================================
 # ⚙️ CONFIGURATION
@@ -61,9 +62,8 @@ def save_db(db_data):
 db_data = load_db()
 db_connected = True
 
-
 # ==========================================
-# 🔐 SUBSCRIPTION CHECK (STRICT MODE)
+# 🔐 SUBSCRIPTION CHECK 
 # ==========================================
 def check_membership(user_id):
     try:
@@ -72,12 +72,8 @@ def check_membership(user_id):
             return True
         return False
     except Exception as e:
-        print(f"Membership Check Error: {e}")
         return False
 
-# ==========================================
-# 🧮 LOGIC
-# ==========================================
 def calculate_grade_stats(xp):
     level = 1; cost = 100; temp_xp = xp
     while temp_xp >= cost:
@@ -116,25 +112,24 @@ def parse_txt_file(content):
 
 
 # ============================
-# 🤖 BOT HANDLERS
+# 🤖 BOT HANDLERS (COLORED BUTTONS HERE)
 # ==========================================
 
 def send_welcome_menu(chat_id, first_name, user_id, lang):
     markup = InlineKeyboardMarkup()
-    
     app_url = f"{WEB_APP_URL}?lang={lang}"
     
-    # NAYA 5: Button Colors using Emojis
-    btn_text = "🟢 🧬 अभ्यास शुरू करें 🧬" if lang == 'hi' else "🟢 🧬 START 🧬"
+    # NAYA TELEGRAM UPDATE: Colored Buttons (success=Green, primary=Blue, danger=Red)
+    btn_text = "🧬 अभ्यास शुरू करें 🧬" if lang == 'hi' else "🧬 START 🧬"
+    markup.add(InlineKeyboardButton(btn_text, web_app=WebAppInfo(url=app_url), style="success"))
     
-    markup.add(InlineKeyboardButton(btn_text, web_app=WebAppInfo(url=app_url)))
     markup.row(
-        InlineKeyboardButton("🔵 📢 𝗢𝗳𝗳𝗶𝗰𝗶𝗮𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", url=CHANNEL_LINK1),
-        InlineKeyboardButton("🔵 👨‍⚕️ 𝗛𝗲𝗹𝗽 𝗖𝗲𝗻𝘁𝗲𝗿", url="https://t.me/errorkidk")
+        InlineKeyboardButton("📢 Official Channel", url=CHANNEL_LINK1, style="primary"),
+        InlineKeyboardButton("👨‍⚕️ Help Center", url="https://t.me/errorkidk", style="primary")
     )
     
-    lang_btn_text = "🔴 ⚙️ भाषा बदलें (Change Lang)" if lang == 'hi' else "🔴 ⚙️ Change Language"
-    markup.add(InlineKeyboardButton(lang_btn_text, callback_data="show_lang_menu"))
+    lang_btn_text = "⚙️ भाषा बदलें (Change Lang)" if lang == 'hi' else "⚙️ Change Language"
+    markup.add(InlineKeyboardButton(lang_btn_text, callback_data="show_lang_menu", style="danger"))
     
     try:
         photos = bot.get_user_profile_photos(user_id)
@@ -142,7 +137,7 @@ def send_welcome_menu(chat_id, first_name, user_id, lang):
             media = photos.photos[0][-1].file_id
         else:
             media = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
-    except Exception as e:
+    except Exception:
         media = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
 
     caption = f"🏆 <b>BSEB QUIZ PRO 🧾</b> 🏆\n\n" \
@@ -162,10 +157,9 @@ def start(m):
     uid = str(m.from_user.id)
     if not check_membership(int(uid)):
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("📢 Join Channel (यहाँ जुड़ें)", url=CHANNEL_LINK))
-        markup.add(InlineKeyboardButton("🔄 Check Status", callback_data="check_sub"))
+        markup.add(InlineKeyboardButton("📢 Join Channel (यहाँ जुड़ें)", url=CHANNEL_LINK, style="primary"))
+        markup.add(InlineKeyboardButton("🔄 Check Status", callback_data="check_sub", style="success"))
         
-        # NAYA 1: Bilingual & Formal Access Denied Message
         msg_text = (
             "🎓 <b>Welcome to BSEB Quiz Pro! / आपका स्वागत है!</b>\n\n"
             "🇬🇧 To access the bot and continue your practice, it is mandatory to join our official channel. Please join via the button below and click 'Check Status'.\n\n"
@@ -177,8 +171,8 @@ def start(m):
     user = db_data['users'].get(uid, {})
     if 'medium' not in user:
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
-        markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
+        markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
+        markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
         bot.send_message(m.chat.id, "🌐 **Choose your Language / अपनी भाषा चुनें:**", reply_markup=markup, parse_mode="Markdown")
         return
         
@@ -186,9 +180,7 @@ def start(m):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("lang_"))
 def set_language(call):
-    # NAYA 2: Fix Loading Issue on Language Button
     bot.answer_callback_query(call.id, "Language Updated! / भाषा अपडेट हो गई!")
-    
     uid = str(call.from_user.id)
     lang = call.data.split("_")[1] 
     
@@ -201,20 +193,19 @@ def set_language(call):
     bot.delete_message(call.message.chat.id, call.message.message_id)
     send_welcome_menu(call.message.chat.id, call.from_user.first_name, uid, lang)
 
-# NAYA 2 (Part B): Fix logic for the red 'Change Language' inline button
 @bot.callback_query_handler(func=lambda call: call.data == "show_lang_menu")
 def show_lang_menu_callback(call):
     bot.answer_callback_query(call.id)
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
-    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
+    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
+    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
     bot.send_message(call.message.chat.id, "⚙️ **Update Language / माध्यम बदलें:**", reply_markup=markup, parse_mode="Markdown")
 
 @bot.message_handler(commands=['language', 'settings'])
 def change_lang(m):
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
-    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
+    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
+    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
     bot.send_message(m.chat.id, "⚙️ **Update Language / माध्यम बदलें:**", reply_markup=markup, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
@@ -223,7 +214,7 @@ def callback_check(call):
     if check_membership(uid):
         bot.answer_callback_query(call.id, "✅ Verified!")
         bot.delete_message(call.message.chat.id, call.message.message_id)
-        send_welcome_menu(call.message.chat.id, call.from_user.first_name, uid, "hi") # Defaulting fallback to 'hi' if medium missed
+        send_welcome_menu(call.message.chat.id, call.from_user.first_name, uid, "hi") 
     else:
         bot.answer_callback_query(call.id, "❌ Not Joined Yet!", show_alert=True)
 
@@ -385,62 +376,55 @@ def sync_user():
     user['mistakes'] = curr_mistakes
     save_db(db_data)
     
-    # PDF Logic
+    # ==================================
+    # 🔴 PERFECT PDF FIX (No Permission Error)
+    # ==================================
     if new_mistakes_for_pdf:
         try:
-            # NAYA 4: Hindi Font download and embedding logic for perfect PDF
-            font_path = "NotoSansDevanagari-Regular.ttf"
+            # HuggingFace me /tmp/ folder hi writable hota hai
+            temp_dir = tempfile.gettempdir()
+            font_path = os.path.join(temp_dir, "NotoSansDevanagari-Regular.ttf")
+            
+            # Request ke zariye font load (Bypasses GitHub protections)
             if not os.path.exists(font_path):
-                font_url = "https://github.com/google/fonts/raw/main/ofl/notosansdevanagari/NotoSansDevanagari-Regular.ttf"
-                urllib.request.urlretrieve(font_url, font_path)
+                req = urllib.request.Request(
+                    'https://github.com/google/fonts/raw/main/ofl/notosansdevanagari/NotoSansDevanagari-Regular.ttf',
+                    headers={'User-Agent': 'Mozilla/5.0'}
+                )
+                with urllib.request.urlopen(req) as response, open(font_path, 'wb') as out_file:
+                    out_file.write(response.read())
 
             pdf = FPDF()
             pdf.add_page()
             
-            # Setup custom unicode font
-            try:
-                pdf.add_font("Hindi", "", font_path, uni=True)
-                pdf.set_font("Hindi", "", 16)
-            except:
-                try:
-                    pdf.add_font("Hindi", "", font_path)
-                    pdf.set_font("Hindi", "", 16)
-                except:
-                    pdf.set_font("Arial", 'B', 16)
+            # Load font for Hindi Support
+            pdf.add_font("Hindi", "", fname=font_path)
+            pdf.set_font("Hindi", size=16)
 
-            pdf.cell(200, 10, txt="Quiz Mistakes Report", ln=True, align='C')
+            pdf.cell(200, 10, "Quiz Mistakes Report", ln=True, align='C')
             pdf.ln(10)
             
             for idx, m in enumerate(new_mistakes_for_pdf):
                 q_text = f"Q{idx+1}: {m['q']}"
-                try:
-                    pdf.set_font("Hindi", "", 11)
-                except:
-                    pdf.set_font("Arial", 'B', 11)
-                    q_text = q_text.encode('latin-1', 'replace').decode('latin-1')
-                    
-                pdf.multi_cell(0, 10, txt=q_text)
+                pdf.set_font("Hindi", size=11)
+                pdf.multi_cell(0, 10, q_text)
                 
-                try:
-                    pdf.set_font("Hindi", "", 10)
-                except:
-                    pdf.set_font("Arial", "", 10)
-                    
+                pdf.set_font("Hindi", size=10)
                 for i, opt in enumerate(m['opts']):
                     prefix = "[ CORRECT ] " if i == m['ans'] else " - "
-                    opt_text = f"{prefix}{opt}"
-                    if not os.path.exists(font_path):
-                        opt_text = opt_text.encode('latin-1', 'replace').decode('latin-1')
-                    pdf.multi_cell(0, 8, txt=opt_text)
+                    pdf.multi_cell(0, 8, f"{prefix}{opt}")
                 pdf.ln(5)
                 
-            file_name = f"Mistakes_{uid}_{int(time.time())}.pdf"
+            # /tmp/ folder me hi PDF create karo jaha error nahi aayega!
+            file_name = os.path.join(temp_dir, f"Mistakes_{uid}_{int(time.time())}.pdf")
             pdf.output(file_name)
+            
             with open(file_name, 'rb') as f:
                 bot.send_document(uid, f, caption="🚨 **Your Quiz Analytics**\n\nHere is a PDF of the questions you got wrong.")
+            
             os.remove(file_name) 
         except Exception as e: 
-            print("PDF Error:", e)
+            print("PDF Error ->", e)
 
     stats = calculate_grade_stats(user['xp'])
     return jsonify({
