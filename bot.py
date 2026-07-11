@@ -8,16 +8,12 @@ import threading, os, time
 import json
 from datetime import datetime
 from fpdf import FPDF
+import urllib.request # NAYA: PDF font download ke liye
 
 # ==========================================
 # ⚙️ CONFIGURATION
 # ==========================================
-# ==========================================
-# ⚙️ CONFIGURATION
-# ==========================================
-BOT_TOKEN = os.environ.get("BOT_TOKEN") # HF Secrets se lega
-# Aapka HF Space link kuch is tarah hoga:
-# Render ka URL environment variables se lega
+BOT_TOKEN = os.environ.get("BOT_TOKEN") 
 WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://aapka-app-name.onrender.com") 
 
 ADMIN_ID = 8718760365
@@ -34,11 +30,8 @@ app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # database 
-
-import os
 from pymongo import MongoClient
 
-# MongoDB Setup (URI Hugging Face Secrets se aayega)
 MONGO_URI = os.environ.get("MONGO_URI") 
 client = MongoClient(MONGO_URI)
 db = client['bseb_quiz_db']
@@ -91,11 +84,10 @@ def calculate_grade_stats(xp):
         temp_xp -= cost; level += 1; cost += 20
     percent = (temp_xp / cost) * 100
     return {"grade": level, "current_xp": temp_xp, "req_xp": cost, "percent": min(percent, 100)}
-#77777
 
 def parse_txt_file(content):
     lines = content.splitlines()
-    meta = {"path": [], "mode": "normal", "medium": "hi"} # NAYA: Default hindi
+    meta = {"path": [], "mode": "normal", "medium": "hi"} 
     questions = []
     
     for line in lines[:10]:
@@ -127,32 +119,28 @@ def parse_txt_file(content):
 # 🤖 BOT HANDLERS
 # ==========================================
 
-
-
-#777777
 def send_welcome_menu(chat_id, first_name, user_id, lang):
     markup = InlineKeyboardMarkup()
     
     app_url = f"{WEB_APP_URL}?lang={lang}"
-    btn_text = "🧬 अभ्यास शुरू करें 🧬" if lang == 'hi' else "🧬 START 🧬"
+    
+    # NAYA 5: Button Colors using Emojis
+    btn_text = "🟢 🧬 अभ्यास शुरू करें 🧬" if lang == 'hi' else "🟢 🧬 START 🧬"
     
     markup.add(InlineKeyboardButton(btn_text, web_app=WebAppInfo(url=app_url)))
     markup.row(
-        InlineKeyboardButton("📢 𝗢𝗳𝗳𝗶𝗰𝗶𝗮𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", url=CHANNEL_LINK1),
-        InlineKeyboardButton("👨‍⚕️ 𝗛𝗲𝗹𝗽 𝗖𝗲𝗻𝘁𝗲𝗿", url="https://t.me/errorkidk")
+        InlineKeyboardButton("🔵 📢 𝗢𝗳𝗳𝗶𝗰𝗶𝗮𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹", url=CHANNEL_LINK1),
+        InlineKeyboardButton("🔵 👨‍⚕️ 𝗛𝗲𝗹𝗽 𝗖𝗲𝗻𝘁𝗲𝗿", url="https://t.me/errorkidk")
     )
     
-    lang_btn_text = "⚙️ भाषा बदलें (Change Lang)" if lang == 'hi' else "⚙️ Change Language"
+    lang_btn_text = "🔴 ⚙️ भाषा बदलें (Change Lang)" if lang == 'hi' else "🔴 ⚙️ Change Language"
     markup.add(InlineKeyboardButton(lang_btn_text, callback_data="show_lang_menu"))
     
-    # 👇 NAYA LOGIC: User ka profile photo fetch karna
     try:
         photos = bot.get_user_profile_photos(user_id)
         if photos.total_count > 0:
-            # Sabse latest aur high-quality photo ka file_id nikalna
             media = photos.photos[0][-1].file_id
         else:
-            # Agar user ne DP hide ki hai ya nahi lagayi hai, toh ye default image jayegi
             media = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
     except Exception as e:
         media = "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
@@ -169,18 +157,23 @@ def send_welcome_menu(chat_id, first_name, user_id, lang):
     except:
         bot.send_message(chat_id, caption, reply_markup=markup, parse_mode="HTML")
 
-
 @bot.message_handler(commands=['start'])
 def start(m):
     uid = str(m.from_user.id)
     if not check_membership(int(uid)):
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("📢 Join Channel (Must)", url=CHANNEL_LINK))
+        markup.add(InlineKeyboardButton("📢 Join Channel (यहाँ जुड़ें)", url=CHANNEL_LINK))
         markup.add(InlineKeyboardButton("🔄 Check Status", callback_data="check_sub"))
-        bot.send_message(m.chat.id, "⚠️ <b>Access Denied!</b>\nYou must join our channel.", reply_markup=markup, parse_mode="HTML")
+        
+        # NAYA 1: Bilingual & Formal Access Denied Message
+        msg_text = (
+            "🎓 <b>Welcome to BSEB Quiz Pro! / आपका स्वागत है!</b>\n\n"
+            "🇬🇧 To access the bot and continue your practice, it is mandatory to join our official channel. Please join via the button below and click 'Check Status'.\n\n"
+            "🇮🇳 बॉट का उपयोग करने और अपना अभ्यास जारी रखने के लिए, हमारे आधिकारिक चैनल से जुड़ना अनिवार्य है। कृपया नीचे दिए गए बटन से चैनल ज्वाइन करें और फिर 'Check Status' पर क्लिक करें।"
+        )
+        bot.send_message(m.chat.id, msg_text, reply_markup=markup, parse_mode="HTML")
         return
         
-    # Check if user language is saved
     user = db_data['users'].get(uid, {})
     if 'medium' not in user:
         markup = InlineKeyboardMarkup()
@@ -193,8 +186,11 @@ def start(m):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("lang_"))
 def set_language(call):
+    # NAYA 2: Fix Loading Issue on Language Button
+    bot.answer_callback_query(call.id, "Language Updated! / भाषा अपडेट हो गई!")
+    
     uid = str(call.from_user.id)
-    lang = call.data.split("_")[1] # 'hi' or 'en'
+    lang = call.data.split("_")[1] 
     
     if uid not in db_data['users']:
         db_data['users'][uid] = {"_id": uid, "name": call.from_user.first_name, "xp": 0, "mistakes": []}
@@ -205,6 +201,15 @@ def set_language(call):
     bot.delete_message(call.message.chat.id, call.message.message_id)
     send_welcome_menu(call.message.chat.id, call.from_user.first_name, uid, lang)
 
+# NAYA 2 (Part B): Fix logic for the red 'Change Language' inline button
+@bot.callback_query_handler(func=lambda call: call.data == "show_lang_menu")
+def show_lang_menu_callback(call):
+    bot.answer_callback_query(call.id)
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
+    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
+    bot.send_message(call.message.chat.id, "⚙️ **Update Language / माध्यम बदलें:**", reply_markup=markup, parse_mode="Markdown")
+
 @bot.message_handler(commands=['language', 'settings'])
 def change_lang(m):
     markup = InlineKeyboardMarkup()
@@ -212,14 +217,13 @@ def change_lang(m):
     markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
     bot.send_message(m.chat.id, "⚙️ **Update Language / माध्यम बदलें:**", reply_markup=markup, parse_mode="Markdown")
 
-
 @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
 def callback_check(call):
     uid = call.from_user.id
     if check_membership(uid):
         bot.answer_callback_query(call.id, "✅ Verified!")
         bot.delete_message(call.message.chat.id, call.message.message_id)
-        send_welcome_menu(call.message.chat.id, call.from_user.first_name, uid)
+        send_welcome_menu(call.message.chat.id, call.from_user.first_name, uid, "hi") # Defaulting fallback to 'hi' if medium missed
     else:
         bot.answer_callback_query(call.id, "❌ Not Joined Yet!", show_alert=True)
 
@@ -276,16 +280,13 @@ def handle_docs(message):
             bot.reply_to(message, "✅ **Restore Successful!**\nData wapas aa gaya hai.")
             return
         
-        # Yahan spacing bilkul sahi set ki gayi hai
         meta, parsed_q = parse_txt_file(content)
         if not meta: 
             bot.reply_to(message, parsed_q) 
             return
 
-        # NAYA: Path aur Medium dono check karke purana delete karega
         db_data['questions'] = [q for q in db_data.get('questions', []) if not (q.get('path') == meta['path'] and q.get('medium', 'hi') == meta['medium'])]
         
-        # NAYA: Naye data me medium bhi save karega
         new_q = {"path": meta['path'], "mode": meta['mode'], "medium": meta['medium'], "data": parsed_q}
         db_data['questions'].append(new_q)
         save_db(db_data)
@@ -302,7 +303,6 @@ def handle_docs(message):
 # ==========================================
 @app.route('/')
 def index(): 
-    # URL query string se language uthayega (e.g., ?lang=hi)
     lang = request.args.get('lang', 'en')
     if lang == 'hi':
         return render_template('quiz_hi.html')
@@ -310,11 +310,10 @@ def index():
 
 @app.route('/api/get_data')
 def get_data():
-    req_lang = request.args.get('lang', 'hi') # NAYA: Frontend se aayi language
+    req_lang = request.args.get('lang', 'hi') 
     
     tree = {}
     for doc in db_data.get('questions', []):
-        # NAYA: Agar medium match nahi karta toh question skip kar dega
         if doc.get('medium', 'hi') != req_lang:
             continue
             
@@ -332,23 +331,17 @@ def get_data():
         
     return jsonify(tree)
 
-
-# Note: /api/user/sync aur /api/leaderboard wale APIs ko waisa hi chhod dena hai (unme koi change nahi hai).
-# Uske niche /api/admin/delete wale ko replace karna hai:
-
 @app.route('/api/admin/delete', methods=['POST'])
 def delete_item():
     data = request.json
     if str(data.get('uid')) != str(ADMIN_ID): return jsonify({"error": "Unauthorized"})
     
-    # Frontend se aya hua rasta aur aakhiri target folder
     target_path = data.get('path', []) + [data.get('target')]
     
     try:
         new_questions = []
         for q in db_data.get('questions', []):
             q_path = q.get('path', [])
-            # Agar folder path match karta hai, toh uske saare sub-folders delete ho jayenge
             if q_path[:len(target_path)] == target_path:
                 continue 
             new_questions.append(q)
@@ -395,20 +388,49 @@ def sync_user():
     # PDF Logic
     if new_mistakes_for_pdf:
         try:
+            # NAYA 4: Hindi Font download and embedding logic for perfect PDF
+            font_path = "NotoSansDevanagari-Regular.ttf"
+            if not os.path.exists(font_path):
+                font_url = "https://github.com/google/fonts/raw/main/ofl/notosansdevanagari/NotoSansDevanagari-Regular.ttf"
+                urllib.request.urlretrieve(font_url, font_path)
+
             pdf = FPDF()
             pdf.add_page()
-            pdf.set_font("Arial", 'B', 16)
+            
+            # Setup custom unicode font
+            try:
+                pdf.add_font("Hindi", "", font_path, uni=True)
+                pdf.set_font("Hindi", "", 16)
+            except:
+                try:
+                    pdf.add_font("Hindi", "", font_path)
+                    pdf.set_font("Hindi", "", 16)
+                except:
+                    pdf.set_font("Arial", 'B', 16)
+
             pdf.cell(200, 10, txt="Quiz Mistakes Report", ln=True, align='C')
             pdf.ln(10)
             
             for idx, m in enumerate(new_mistakes_for_pdf):
-                q_text = f"Q{idx+1}: {m['q']}".encode('latin-1', 'replace').decode('latin-1')
-                pdf.set_font("Arial", 'B', 11)
+                q_text = f"Q{idx+1}: {m['q']}"
+                try:
+                    pdf.set_font("Hindi", "", 11)
+                except:
+                    pdf.set_font("Arial", 'B', 11)
+                    q_text = q_text.encode('latin-1', 'replace').decode('latin-1')
+                    
                 pdf.multi_cell(0, 10, txt=q_text)
-                pdf.set_font("Arial", size=10)
+                
+                try:
+                    pdf.set_font("Hindi", "", 10)
+                except:
+                    pdf.set_font("Arial", "", 10)
+                    
                 for i, opt in enumerate(m['opts']):
                     prefix = "[ CORRECT ] " if i == m['ans'] else " - "
-                    opt_text = f"{prefix}{opt}".encode('latin-1', 'replace').decode('latin-1')
+                    opt_text = f"{prefix}{opt}"
+                    if not os.path.exists(font_path):
+                        opt_text = opt_text.encode('latin-1', 'replace').decode('latin-1')
                     pdf.multi_cell(0, 8, txt=opt_text)
                 pdf.ln(5)
                 
@@ -417,7 +439,8 @@ def sync_user():
             with open(file_name, 'rb') as f:
                 bot.send_document(uid, f, caption="🚨 **Your Quiz Analytics**\n\nHere is a PDF of the questions you got wrong.")
             os.remove(file_name) 
-        except: pass
+        except Exception as e: 
+            print("PDF Error:", e)
 
     stats = calculate_grade_stats(user['xp'])
     return jsonify({
@@ -453,12 +476,8 @@ def leaderboard(filter):
     user_rank = next((u for u in top_100 if u['uid'] == uid_req), None)
     return jsonify({"top": top_100, "user": user_rank})
 
-
-
 if __name__ == "__main__":
-    # Render ke liye dynamic port assign karna zaroori hai
     port = int(os.environ.get("PORT", 10000))
     t = threading.Thread(target=lambda: socketio.run(app, host="0.0.0.0", port=port, allow_unsafe_werkzeug=True))
     t.start()
     bot.infinity_polling()
-    
