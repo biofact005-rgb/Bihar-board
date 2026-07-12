@@ -26,8 +26,8 @@ GROUP_ID = -1002436183030 # 🔴 Ise apne group ID se replace karein (Minus zaro
 BOT_USERNAME = "@Bseb_2026_2027_bot" # 🔴 Apne Bot ka asli username dalein (without link)
 
 # Channel Details for Verification
-CHANNEL_USERNAME = "@errorkid_05" 
-CHANNEL_LINK = "https://t.me/errorkid_05"
+CHANNEL_USERNAME = "@errorkidddd" 
+CHANNEL_LINK = "https://t.me/errorkidddd"
 CHANNEL_LINK1 = "https://t.me/+H3-K7T29hVdhYzY1"
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -207,7 +207,7 @@ def send_welcome_menu(chat_id, first_name, user_id, lang):
     markup.add(InlineKeyboardButton(btn_text, web_app=WebAppInfo(url=app_url), style="success"))
     markup.row(
         InlineKeyboardButton("📢 Official Channel", url=CHANNEL_LINK1, style="primary"),
-        InlineKeyboardButton("👨‍⚕️ Help Center", url="https://t.me/errorkidk", style="primary")
+        InlineKeyboardButton("👨‍⚕️ Help Center", url="https://t.me/errorkidd", style="primary")
     )
     lang_btn_text = "⚙️ भाषा बदलें (Change Lang)" if lang == 'hi' else "⚙️ Change Language"
     markup.add(InlineKeyboardButton(lang_btn_text, callback_data="show_lang_menu", style="danger"))
