@@ -376,8 +376,6 @@ def sync_user():
     
     curr_mistakes = user.get('mistakes', [])
     exist = {m['q'] for m in curr_mistakes}
-    
-    # Store questions including meta keys (chapter, subject)
     new_mistakes_for_pdf = [m for m in mistakes if m['q'] not in exist and not curr_mistakes.append(m)]
     
     if solved: curr_mistakes = [m for m in curr_mistakes if m['q'] not in solved]
@@ -399,9 +397,7 @@ def sync_user():
             pdf.ln(10)
             for idx, m in enumerate(new_mistakes_for_pdf):
                 pdf.set_font("Hindi", size=11)
-                subject_text = f" [{m['subject'].upper()}]" if m.get('subject') else ""
-                chapter_text = f" - {m['chapter']}" if m.get('chapter') else ""
-                pdf.multi_cell(0, 10, f"Q{idx+1}: {m['q']}{subject_text}{chapter_text}")
+                pdf.multi_cell(0, 10, f"Q{idx+1}: {m['q']}")
                 pdf.set_font("Hindi", size=10)
                 for i, opt in enumerate(m['opts']):
                     pdf.multi_cell(0, 8, f"{'[ CORRECT ] ' if i == m['ans'] else ' - '}{opt}")
