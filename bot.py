@@ -10,8 +10,8 @@ from datetime import datetime
 from fpdf import FPDF
 import urllib.request 
 import tempfile
-from apscheduler.schedulers.background import BackgroundScheduler # NAYA: Scheduler ke liye
-import pytz # NAYA: Timezone ke liye
+from apscheduler.schedulers.background import BackgroundScheduler 
+import pytz 
 
 # ==========================================
 # ⚙️ CONFIGURATION
@@ -21,9 +21,10 @@ WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://aapka-app-name.onrender.com
 
 ADMIN_ID = 8718760365
 
-# NAYA: Apne Group Ki ID yahan daalein (Jisme bot Admin ho)
-GROUP_ID = -1002436183030 # 🔴 Ise apne group ID se replace karein (Minus zaroor lagayein)
-BOT_USERNAME = "@Bseb_2026_2027_bot" # 🔴 Apne Bot ka asli username dalein (without link)
+# Apne Group Ki ID yahan daalein (Jisme bot Admin ho)
+GROUP_ID = -1002436183030 
+BOT_USERNAME = "@Bseb_2026_2027_bot" 
+CLEAN_BOT_USERNAME = BOT_USERNAME.replace('@', '') # Group Invite ke liye
 
 # Channel Details for Verification
 CHANNEL_USERNAME = "@errorkids" 
@@ -67,47 +68,32 @@ db_data = load_db()
 db_connected = True
 
 # ==========================================
-# ⏰ BACKGROUND SCHEDULER TASKS (NEW FEATURES)
+# ⏰ BACKGROUND SCHEDULER TASKS 
 # ==========================================
 last_poll_msg_id = None
 
 def post_random_group_question():
     global last_poll_msg_id
-    
-    # 1. Purana question delete karo
     if last_poll_msg_id:
-        try:
-            bot.delete_message(GROUP_ID, last_poll_msg_id)
-        except Exception:
-            pass # Agar message kisi ne manually delete kar diya ho toh ignore karo
+        try: bot.delete_message(GROUP_ID, last_poll_msg_id)
+        except Exception: pass
         last_poll_msg_id = None
 
-    # 2. English (en) questions collect karo
     en_questions = []
     for doc in db_data.get('questions', []):
         if doc.get('medium', 'hi') == 'en': 
             en_questions.extend(doc.get('data', []))
 
-    if not en_questions:
-        return # Agar english questions database me nahi hai toh kuch mat karo
+    if not en_questions: return
 
-    # 3. Random question chuno aur Poll bana kar bhejo
-    import random
     q = random.choice(en_questions)
-    
-    # Question length poll limit se jyada na ho
     q_text = "🎯 𝗕𝗦𝗘𝗕 𝗗𝗮𝗶𝗹𝘆 𝗣𝗿𝗮𝗰𝘁𝗶𝗰𝗲:\n\n" + q['q']
-    if len(q_text) > 300: 
-        q_text = q_text[:295] + "..."
+    if len(q_text) > 300: q_text = q_text[:295] + "..."
 
     try:
         msg = bot.send_poll(
-            chat_id=GROUP_ID,
-            question=q_text,
-            options=q['opts'],
-            type='quiz',
-            correct_option_id=q['ans'],
-            is_anonymous=True,
+            chat_id=GROUP_ID, question=q_text, options=q['opts'],
+            type='quiz', correct_option_id=q['ans'], is_anonymous=True,
             explanation=f"Aise aur sawaal practice karne ke liye yahan click karein: {BOT_USERNAME}"
         )
         last_poll_msg_id = msg.message_id
@@ -116,58 +102,44 @@ def post_random_group_question():
 
 def announce_daily_leaderboard():
     now = time.time()
-    time_limit = now - 86400 # Pichle 24 ghante (1 din)
-    
+    time_limit = now - 86400 
     valid_logs = [log for log in db_data.get('logs', []) if log['ts'] > time_limit]
     
     user_scores = {}
     for log in valid_logs:
         uid = log['uid']
-        if uid not in user_scores:
-            user_scores[uid] = {"name": log['name'], "score": 0}
+        if uid not in user_scores: user_scores[uid] = {"name": log['name'], "score": 0}
         user_scores[uid]['score'] += log['score']
         
     sorted_users = sorted(user_scores.items(), key=lambda x: x[1]['score'], reverse=True)
     top_3 = sorted_users[:3]
-    
-    if not top_3:
-        return
+    if not top_3: return
 
     msg = "🏆 <b>BSEB QUIZ PRO - TODAY'S TOPPERS</b> 🏆\n\n"
     msg += "Aaj ke din sabse zyada mehnat in students ne ki hai! Baki sab bhi practice karo aur Topper bano! 🔥\n\n"
-    
     medals = ["🥇", "🥈", "🥉"]
     for i, user in enumerate(top_3):
         msg += f"{medals[i]} <b>{user[1]['name']}</b> - <i>{user[1]['score']} Points</i>\n"
-        
     msg += f"\n🤖 <b>Apna rank badhane ke liye Test dein:</b> {BOT_USERNAME}"
     
-    try:
-        bot.send_message(GROUP_ID, msg, parse_mode="HTML")
-    except Exception as e:
-        print("Daily Leaderboard Announce Error:", e)
+    try: bot.send_message(GROUP_ID, msg, parse_mode="HTML")
+    except Exception as e: print("Daily Leaderboard Announce Error:", e)
 
-# Scheduler Setup
 tz = pytz.timezone('Asia/Kolkata')
 scheduler = BackgroundScheduler(timezone=tz)
-# Har 5 minute me random question
 scheduler.add_job(post_random_group_question, 'interval', minutes=5)
-# Raat theek 12:00 baje leaderboard
 scheduler.add_job(announce_daily_leaderboard, 'cron', hour=0, minute=0)
 scheduler.start()
 
-
 # ==========================================
-# 🔐 SUBSCRIPTION CHECK & OTHER LOGICS
+# 🔐 SUBSCRIPTION & UTILS
 # ==========================================
 def check_membership(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        if member.status in ['creator', 'administrator', 'member']:
-            return True
+        if member.status in ['creator', 'administrator', 'member']: return True
         return False
-    except Exception as e:
-        return False
+    except Exception: return False
 
 def calculate_grade_stats(xp):
     level = 1; cost = 100; temp_xp = xp
@@ -196,21 +168,258 @@ def parse_txt_file(content):
                 except: pass
     return meta, questions
 
+# ==========================================
+# 👥 GROUP QUIZ ENGINE (NEW FEATURE)
+# ==========================================
+active_group_quizzes = {} # Tracks active quizzes in groups
+group_setup_sessions = {} # Tracks setup state for admins
+active_polls = {} # Maps poll_id to correct answer & chat
+
+def get_group_english_questions():
+    en_qs = []
+    topics = []
+    for doc in db_data.get('questions', []):
+        if doc.get('medium', 'hi') == 'en':
+            en_qs.extend(doc.get('data', []))
+            topic_name = " / ".join(doc.get('path', []))
+            if topic_name not in topics:
+                topics.append(topic_name)
+    return en_qs, topics
+
+@bot.message_handler(commands=['quiz'])
+def setup_group_quiz(m):
+    if m.chat.type not in ['group', 'supergroup']:
+        bot.reply_to(m, "⚠️ This command is only for Groups. Use the Menu to play in private chat.")
+        return
+        
+    try:
+        member = bot.get_chat_member(m.chat.id, m.from_user.id)
+        if member.status not in ['administrator', 'creator'] and str(m.from_user.id) != str(ADMIN_ID):
+            bot.reply_to(m, "⚠️ **Only Group Admins can start a quiz!**", parse_mode="Markdown")
+            return
+    except: pass
+
+    if m.chat.id in active_group_quizzes:
+        bot.reply_to(m, "⚠️ A quiz is already running in this group! Stop it first using /stopquiz")
+        return
+
+    en_qs, topics = get_group_english_questions()
+    if not en_qs:
+        bot.reply_to(m, "❌ No English questions available in the database to start a quiz.")
+        return
+
+    group_setup_sessions[m.chat.id] = {"admin_id": m.from_user.id, "topic": "Mix"}
+    
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("🔀 Random Mix (All Topics)", callback_data="gq_topic_mix"))
+    for idx, t in enumerate(topics[:5]): # Show up to 5 topics to save space
+        markup.add(InlineKeyboardButton(f"📁 {t}", callback_data=f"gq_topic_{idx}"))
+    
+    bot.send_message(m.chat.id, "⚙️ **GROUP QUIZ SETUP (Admin Only)**\n\n*Step 1:* Choose a Topic for the Quiz:", reply_markup=markup, parse_mode="Markdown")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("gq_"))
+def handle_group_setup(call):
+    chat_id = call.message.chat.id
+    if chat_id not in group_setup_sessions or group_setup_sessions[chat_id]['admin_id'] != call.from_user.id:
+        bot.answer_callback_query(call.id, "⚠️ Only the admin who started the setup can click this!", show_alert=True)
+        return
+
+    session = group_setup_sessions[chat_id]
+    action = call.data
+
+    if action.startswith("gq_topic_"):
+        topic = action.split("_")[2]
+        session['topic'] = topic
+        markup = InlineKeyboardMarkup()
+        markup.row(
+            InlineKeyboardButton("5 Qs", callback_data="gq_cnt_5"),
+            InlineKeyboardButton("10 Qs", callback_data="gq_cnt_10"),
+            InlineKeyboardButton("20 Qs", callback_data="gq_cnt_20")
+        )
+        bot.edit_message_text("⚙️ **Step 2:** Choose Number of Questions:", chat_id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+
+    elif action.startswith("gq_cnt_"):
+        session['count'] = int(action.split("_")[2])
+        markup = InlineKeyboardMarkup()
+        markup.row(
+            InlineKeyboardButton("15s", callback_data="gq_time_15"),
+            InlineKeyboardButton("30s", callback_data="gq_time_30"),
+            InlineKeyboardButton("45s", callback_data="gq_time_45")
+        )
+        bot.edit_message_text("⚙️ **Step 3:** Time per Question:", chat_id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+
+    elif action.startswith("gq_time_"):
+        session['time'] = int(action.split("_")[2])
+        bot.edit_message_text("🚀 **Preparing Quiz Engine...**", chat_id, call.message.message_id, parse_mode="Markdown")
+        start_group_quiz(chat_id)
+
+def start_group_quiz(chat_id):
+    session = group_setup_sessions.pop(chat_id, None)
+    if not session: return
+
+    # Fetch and filter questions
+    en_qs, topics = get_group_english_questions()
+    selected_qs = []
+    
+    if session['topic'] == 'mix':
+        selected_qs = en_qs
+        topic_name = "🔀 Random Mix"
+    else:
+        try:
+            target_topic = topics[int(session['topic'])]
+            topic_name = target_topic
+            for doc in db_data.get('questions', []):
+                if doc.get('medium', 'hi') == 'en' and " / ".join(doc.get('path', [])) == target_topic:
+                    selected_qs.extend(doc.get('data', []))
+        except:
+            selected_qs = en_qs
+            topic_name = "🔀 Random Mix"
+
+    random.shuffle(selected_qs)
+    final_qs = selected_qs[:session['count']]
+
+    if not final_qs:
+        bot.send_message(chat_id, "❌ Not enough questions found for this topic.")
+        return
+
+    active_group_quizzes[chat_id] = {
+        "questions": final_qs,
+        "current_idx": 0,
+        "timer": session['time'],
+        "scores": {}, 
+        "topic_name": topic_name
+    }
+
+    msg = f"📣 **GROUP QUIZ STARTING!** 📣\n\n"
+    msg += f"📚 **Topic:** {topic_name}\n"
+    msg += f"🔢 **Total Questions:** {len(final_qs)}\n"
+    msg += f"⏱ **Time Per Question:** {session['time']} seconds\n\n"
+    msg += "⚠️ *Polls are Non-Anonymous so we can track scores! Get Ready!*"
+    
+    bot.send_message(chat_id, msg, parse_mode="Markdown")
+    time.sleep(3) # Small buffer before first question
+    send_next_group_question(chat_id)
+
+def send_next_group_question(chat_id):
+    if chat_id not in active_group_quizzes: return
+    
+    quiz = active_group_quizzes[chat_id]
+    idx = quiz['current_idx']
+
+    if idx >= len(quiz['questions']):
+        finish_group_quiz(chat_id)
+        return
+
+    q = quiz['questions'][idx]
+    q_text = f"📝 Question {idx + 1}/{len(quiz['questions'])}\n\n{q['q']}"
+    if len(q_text) > 300: q_text = q_text[:295] + "..."
+
+    try:
+        msg = bot.send_poll(
+            chat_id=chat_id,
+            question=q_text,
+            options=q['opts'],
+            type='quiz',
+            correct_option_id=q['ans'],
+            is_anonymous=False, # MUST BE FALSE TO TRACK USER SCORES
+            open_period=quiz['timer'] # Auto close after timer
+        )
+        
+        # Track poll to calculate points
+        active_polls[msg.poll.id] = {
+            "chat_id": chat_id,
+            "correct_id": q['ans']
+        }
+        
+        quiz['current_idx'] += 1
+        
+        # Schedule the next question right after this one closes (+2 seconds buffer)
+        threading.Timer(quiz['timer'] + 2.0, send_next_group_question, args=[chat_id]).start()
+
+    except Exception as e:
+        bot.send_message(chat_id, "❌ Error sending question. Ending quiz.")
+        finish_group_quiz(chat_id)
+
+@bot.poll_answer_handler()
+def handle_group_poll_answer(poll_answer):
+    poll_id = poll_answer.poll_id
+    if poll_id in active_polls:
+        data = active_polls[poll_id]
+        if poll_answer.option_ids and poll_answer.option_ids[0] == data['correct_id']:
+            chat_id = data['chat_id']
+            user = poll_answer.user
+            uid = user.id
+            
+            if chat_id in active_group_quizzes:
+                quiz = active_group_quizzes[chat_id]
+                if uid not in quiz['scores']:
+                    quiz['scores'][uid] = {"name": user.first_name, "score": 0}
+                quiz['scores'][uid]['score'] += 1
+
+@bot.message_handler(commands=['stopquiz'])
+def stop_group_quiz(m):
+    if m.chat.type in ['group', 'supergroup']:
+        try:
+            member = bot.get_chat_member(m.chat.id, m.from_user.id)
+            if member.status in ['administrator', 'creator'] or str(m.from_user.id) == str(ADMIN_ID):
+                if m.chat.id in active_group_quizzes:
+                    bot.reply_to(m, "🛑 Admin stopped the quiz! Calculating final scores...")
+                    finish_group_quiz(m.chat.id)
+                else:
+                    bot.reply_to(m, "⚠️ No active quiz in this group right now.")
+        except: pass
+
+def finish_group_quiz(chat_id):
+    if chat_id not in active_group_quizzes: return
+    quiz = active_group_quizzes.pop(chat_id) # Remove from active
+    
+    scores = quiz['scores']
+    sorted_users = sorted(scores.values(), key=lambda x: x['score'], reverse=True)
+
+    msg = f"🏁 **GROUP QUIZ FINISHED!** 🏁\n"
+    msg += f"📚 **Subject:** {quiz['topic_name']} | ⏱ **Time:** {quiz['timer']}s/Q\n\n"
+    msg += f"🏆 **FINAL LEADERBOARD** 🏆\n"
+
+    if not sorted_users:
+        msg += "\n*Nobody scored any points!* 🥺"
+    else:
+        medals = ["🥇", "🥈", "🥉"]
+        for i, u in enumerate(sorted_users[:10]): # Show top 10
+            if i < 3:
+                medal = medals[i]
+                extra = "🔥 *(Unstoppable!)*" if i == 0 else ("⚡" if i==1 else "✨")
+                msg += f"{medal} **{u['name']}** - {u['score']} Points {extra}\n"
+            else:
+                msg += f" {i+1}️⃣ {u['name']} - {u['score']} Points\n"
+
+    msg += f"\n🤖 *Want to practice more? Start the bot:* @{CLEAN_BOT_USERNAME}"
+    
+    # Cleanup memory
+    keys_to_delete = [pid for pid, data in active_polls.items() if data['chat_id'] == chat_id]
+    for k in keys_to_delete: active_polls.pop(k, None)
+
+    bot.send_message(chat_id, msg, parse_mode="Markdown")
+
 # ============================
-# 🤖 BOT HANDLERS 
+# 🤖 BOT HANDLERS (Private Chat)
 # ==========================================
 
 def send_welcome_menu(chat_id, first_name, user_id, lang):
     markup = InlineKeyboardMarkup()
     app_url = f"{WEB_APP_URL}?lang={lang}"
     btn_text = "🧬 अभ्यास शुरू करें 🧬" if lang == 'hi' else "🧬 START 🧬"
-    markup.add(InlineKeyboardButton(btn_text, web_app=WebAppInfo(url=app_url), style="success"))
+    markup.add(InlineKeyboardButton(btn_text, web_app=WebAppInfo(url=app_url)))
+    
+    # NEW: Add to Group Button
+    markup.add(InlineKeyboardButton("➕ Add Bot to Your Group", url=f"https://t.me/{CLEAN_BOT_USERNAME}?startgroup=true"))
+
     markup.row(
-        InlineKeyboardButton("📢 STUDY MATERIAL", url=CHANNEL_LINK1, style="primary"),
-        InlineKeyboardButton("👨‍⚕️ Help Center", url="https://t.me/errorkidk", style="primary")
+        InlineKeyboardButton("📢 STUDY MATERIAL", url=CHANNEL_LINK1),
+        InlineKeyboardButton("👨‍⚕️ Help Center", url="https://t.me/errorkidk")
     )
     lang_btn_text = "⚙️ भाषा बदलें (Change Lang)" if lang == 'hi' else "⚙️ Change Language"
-    markup.add(InlineKeyboardButton(lang_btn_text, callback_data="show_lang_menu", style="danger"))
+    markup.add(InlineKeyboardButton(lang_btn_text, callback_data="show_lang_menu"))
+    
     try:
         photos = bot.get_user_profile_photos(user_id)
         media = photos.photos[0][-1].file_id if photos.total_count > 0 else "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
@@ -223,11 +432,14 @@ def send_welcome_menu(chat_id, first_name, user_id, lang):
 
 @bot.message_handler(commands=['start'])
 def start(m):
+    # Only answer in private chat for /start
+    if m.chat.type != 'private': return 
+    
     uid = str(m.from_user.id)
     if not check_membership(int(uid)):
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("📢 Join Channel (यहाँ जुड़ें)", url=CHANNEL_LINK, style="primary"))
-        markup.add(InlineKeyboardButton("🔄 Check Status", callback_data="check_sub", style="success"))
+        markup.add(InlineKeyboardButton("📢 Join Channel (यहाँ जुड़ें)", url=CHANNEL_LINK))
+        markup.add(InlineKeyboardButton("🔄 Check Status", callback_data="check_sub"))
         msg_text = "🎓 <b>Welcome to BSEB Quiz Pro! / आपका स्वागत है!</b>\n\n🇬🇧 To access the bot and continue your practice, it is mandatory to join our official channel. Please join via the button below and click 'Check Status'.\n\n🇮🇳 बॉट का उपयोग करने और अपना अभ्यास जारी रखने के लिए, हमारे आधिकारिक चैनल से जुड़ना अनिवार्य है। कृपया नीचे दिए गए बटन से चैनल ज्वाइन करें और फिर 'Check Status' पर क्लिक करें।"
         bot.send_message(m.chat.id, msg_text, reply_markup=markup, parse_mode="HTML")
         return
@@ -235,8 +447,8 @@ def start(m):
     user = db_data['users'].get(uid, {})
     if 'medium' not in user:
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
-        markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
+        markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
+        markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
         bot.send_message(m.chat.id, "🌐 **Choose your Language / अपनी भाषा चुनें:**", reply_markup=markup, parse_mode="Markdown")
         return
     send_welcome_menu(m.chat.id, m.from_user.first_name, uid, user['medium'])
@@ -257,15 +469,16 @@ def set_language(call):
 def show_lang_menu_callback(call):
     bot.answer_callback_query(call.id)
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
-    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
+    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
+    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
     bot.send_message(call.message.chat.id, "⚙️ **Update Language / माध्यम बदलें:**", reply_markup=markup, parse_mode="Markdown")
 
 @bot.message_handler(commands=['language', 'settings'])
 def change_lang(m):
+    if m.chat.type != 'private': return
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
-    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
+    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
+    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
     bot.send_message(m.chat.id, "⚙️ **Update Language / माध्यम बदलें:**", reply_markup=markup, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
