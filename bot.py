@@ -79,7 +79,7 @@ def post_random_group_question():
     if len(q_text) > 300: q_text = q_text[:295] + "..."
 
     try:
-        msg = bot.send_poll(chat_id=GROUP_ID, question=q_text, options=q['opts'], type='quiz', correct_option_id=q['ans'], is_anonymous=True, explanation=f"Aise aur sawaal practice karne ke liye yahan click karein: {BOT_USERNAME}")
+        msg = bot.send_poll(chat_id=GROUP_ID, question=q_text, options=q['opts'], type='quiz', correct_option_id=q['ans'], is_anonymous=True, explanation=f"Practice more: {BOT_USERNAME}")
         last_poll_msg_id = msg.message_id
     except Exception as e: print(f"Group Poll Send Error: {e}")
 
@@ -150,15 +150,34 @@ active_group_quizzes = {}
 group_setup_sessions = {}
 active_polls = {}
 
-def build_quiz_tree():
+def build_quiz_tree(admin_lang='hi'):
     tree = {}
     for doc in db_data.get('questions', []):
+        # Filter by Admin's Language so Hindi/English don't mix!
+        if doc.get('medium', 'hi') != admin_lang:
+            continue
+            
         path = doc.get('path', [])
         if not path: continue
+        
         current = tree
-        for p in path:
-            if p not in current: current[p] = {}
-            current = current[p]
+        for raw_p in path:
+            p_str = raw_p.strip()
+            
+            # Merge "class 12" and "Class 12" into one clean name
+            if p_str.lower() == 'class 12':
+                p_str = 'Class 12'
+                
+            matched_key = p_str
+            for existing_key in current.keys():
+                if not existing_key.startswith('_') and existing_key.lower() == p_str.lower():
+                    matched_key = existing_key
+                    break
+                    
+            if matched_key not in current:
+                current[matched_key] = {}
+            current = current[matched_key]
+            
         current['_is_leaf'] = True
         current['_questions'] = current.get('_questions', []) + doc.get('data', [])
     return tree
@@ -172,7 +191,6 @@ def get_all_questions_from_node(node):
 
 def get_count_buttons(total_qs):
     if total_qs <= 10: return [total_qs]
-    # Dynamic calculation for steps (e.g. 100 -> 20,40,60... | 500 -> 100,200...)
     step = int(round(total_qs / 5.0 / 10.0)) * 10
     if step < 10: step = 10
     counts = []
@@ -195,11 +213,17 @@ def setup_group_quiz(m):
     if m.chat.id in active_group_quizzes:
         return bot.reply_to(m, "⚠️ A quiz is already running in this group! Stop it using /stopquiz")
 
-    tree = build_quiz_tree()
-    if not tree: return bot.reply_to(m, "❌ No questions available in database.")
+    # Get Admin's language preference
+    admin_id = str(m.from_user.id)
+    admin_lang = db_data['users'].get(admin_id, {}).get('medium', 'hi')
+
+    tree = build_quiz_tree(admin_lang)
+    if not tree: 
+        return bot.reply_to(m, f"❌ No questions available in database for your language ({'Hindi' if admin_lang=='hi' else 'English'}).")
 
     group_setup_sessions[m.chat.id] = {
         "admin_id": m.from_user.id,
+        "admin_lang": admin_lang,
         "nav_path": [],
         "selected_qs": [],
         "topic_name": ""
@@ -208,7 +232,7 @@ def setup_group_quiz(m):
 
 def show_nav_menu(chat_id, message_id=None, is_new=False):
     session = group_setup_sessions[chat_id]
-    tree = build_quiz_tree()
+    tree = build_quiz_tree(session['admin_lang'])
     node = tree
     for p in session['nav_path']: node = node.get(p, {})
         
@@ -216,13 +240,13 @@ def show_nav_menu(chat_id, message_id=None, is_new=False):
     markup = InlineKeyboardMarkup()
     
     if len(session['nav_path']) > 0:
-        markup.add(InlineKeyboardButton("🔀 Random Mix from Here", callback_data="gq_action_mix"))
+        markup.add(InlineKeyboardButton("🔀 Random Mix from Here", callback_data="gq_action_mix", style="danger"))
     
     for idx, k in enumerate(keys):
-        markup.add(InlineKeyboardButton(f"📁 {k}", callback_data=f"gq_nav_{idx}"))
+        markup.add(InlineKeyboardButton(f"📁 {k}", callback_data=f"gq_nav_{idx}", style="primary"))
         
     if len(session['nav_path']) > 0:
-        markup.add(InlineKeyboardButton("🔙 Back", callback_data="gq_action_back"))
+        markup.add(InlineKeyboardButton("🔙 Back", callback_data="gq_action_back", style="success"))
         
     path_str = " ➔ ".join(session['nav_path']) if session['nav_path'] else "Root Directory"
     text = f"⚙️ **GROUP QUIZ SETUP**\n\n📂 **Path:** `{path_str}`\n*Choose a folder to open:*", 
@@ -242,12 +266,12 @@ def show_count_menu(chat_id, message_id):
     
     row = []
     for c in counts:
-        row.append(InlineKeyboardButton(f"{c} Qs", callback_data=f"gq_cnt_{c}"))
+        row.append(InlineKeyboardButton(f"{c} Qs", callback_data=f"gq_cnt_{c}", style="primary"))
         if len(row) == 2:
             markup.row(*row); row = []
     if row: markup.row(*row)
         
-    markup.add(InlineKeyboardButton("🔙 Back to Folders", callback_data="gq_action_back"))
+    markup.add(InlineKeyboardButton("🔙 Back to Folders", callback_data="gq_action_back", style="danger"))
     text = f"⚙️ **Step 2:** Number of Questions\n\n📚 **Topic:** {session['topic_name']}\n📊 **Total Available:** {total_qs} Questions"
     bot.edit_message_text(text, chat_id, message_id, reply_markup=markup, parse_mode="Markdown")
 
@@ -262,7 +286,7 @@ def handle_group_setup(call):
 
     if action.startswith("gq_nav_"):
         idx = int(action.split("_")[2])
-        tree = build_quiz_tree()
+        tree = build_quiz_tree(session['admin_lang'])
         node = tree
         for p in session['nav_path']: node = node.get(p, {})
         keys = sorted([k for k in node.keys() if not k.startswith('_')])
@@ -287,7 +311,7 @@ def handle_group_setup(call):
             show_nav_menu(chat_id, call.message.message_id)
             
     elif action == "gq_action_mix":
-        tree = build_quiz_tree()
+        tree = build_quiz_tree(session['admin_lang'])
         node = tree
         for p in session['nav_path']: node = node.get(p, {})
         session['selected_qs'] = get_all_questions_from_node(node)
@@ -297,8 +321,8 @@ def handle_group_setup(call):
     elif action.startswith("gq_cnt_"):
         session['count'] = int(action.split("_")[2])
         markup = InlineKeyboardMarkup()
-        markup.row(InlineKeyboardButton("15s", callback_data="gq_time_15"), InlineKeyboardButton("30s", callback_data="gq_time_30"))
-        markup.row(InlineKeyboardButton("45s", callback_data="gq_time_45"), InlineKeyboardButton("60s", callback_data="gq_time_60"))
+        markup.row(InlineKeyboardButton("15s", callback_data="gq_time_15", style="primary"), InlineKeyboardButton("30s", callback_data="gq_time_30", style="primary"))
+        markup.row(InlineKeyboardButton("45s", callback_data="gq_time_45", style="primary"), InlineKeyboardButton("60s", callback_data="gq_time_60", style="primary"))
         bot.edit_message_text(f"⚙️ **Step 3:** Time per Question:\n\n📚 **Topic:** {session['topic_name']}\n🔢 **Questions:** {session['count']}", chat_id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
     elif action.startswith("gq_time_"):
@@ -396,11 +420,11 @@ def send_welcome_menu(chat_id, first_name, user_id, lang):
     markup = InlineKeyboardMarkup()
     app_url = f"{WEB_APP_URL}?lang={lang}"
     btn_text = "🧬 अभ्यास शुरू करें 🧬" if lang == 'hi' else "🧬 START 🧬"
-    markup.add(InlineKeyboardButton(btn_text, web_app=WebAppInfo(url=app_url)))
-    markup.add(InlineKeyboardButton("➕ Add Bot to Your Group", url=f"https://t.me/{CLEAN_BOT_USERNAME}?startgroup=true"))
-    markup.row(InlineKeyboardButton("📢 STUDY MATERIAL", url=CHANNEL_LINK1), InlineKeyboardButton("👨‍⚕️ Help Center", url="https://t.me/errorkidk"))
+    markup.add(InlineKeyboardButton(btn_text, web_app=WebAppInfo(url=app_url), style="success"))
+    markup.add(InlineKeyboardButton("➕ Add Bot to Your Group", url=f"https://t.me/{CLEAN_BOT_USERNAME}?startgroup=true", style="success"))
+    markup.row(InlineKeyboardButton("📢 STUDY MATERIAL", url=CHANNEL_LINK1, style="primary"), InlineKeyboardButton("👨‍⚕️ Help Center", url="https://t.me/errorkidk", style="primary"))
     lang_btn_text = "⚙️ भाषा बदलें (Change Lang)" if lang == 'hi' else "⚙️ Change Language"
-    markup.add(InlineKeyboardButton(lang_btn_text, callback_data="show_lang_menu"))
+    markup.add(InlineKeyboardButton(lang_btn_text, callback_data="show_lang_menu", style="danger"))
     
     try:
         photos = bot.get_user_profile_photos(user_id)
@@ -417,8 +441,8 @@ def start(m):
     uid = str(m.from_user.id)
     if not check_membership(int(uid)):
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("📢 Join Channel (यहाँ जुड़ें)", url=CHANNEL_LINK))
-        markup.add(InlineKeyboardButton("🔄 Check Status", callback_data="check_sub"))
+        markup.add(InlineKeyboardButton("📢 Join Channel (यहाँ जुड़ें)", url=CHANNEL_LINK, style="primary"))
+        markup.add(InlineKeyboardButton("🔄 Check Status", callback_data="check_sub", style="success"))
         msg_text = "🎓 <b>Welcome! / आपका स्वागत है!</b>\n\n🇬🇧 Please join our official channel to continue.\n🇮🇳 कृपया नीचे दिए गए बटन से चैनल ज्वाइन करें।"
         bot.send_message(m.chat.id, msg_text, reply_markup=markup, parse_mode="HTML")
         return
@@ -426,8 +450,8 @@ def start(m):
     user = db_data['users'].get(uid, {})
     if 'medium' not in user:
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
-        markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
+        markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
+        markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
         bot.send_message(m.chat.id, "🌐 **Choose your Language:**", reply_markup=markup, parse_mode="Markdown")
         return
     send_welcome_menu(m.chat.id, m.from_user.first_name, uid, user['medium'])
@@ -447,16 +471,16 @@ def set_language(call):
 def show_lang_menu_callback(call):
     bot.answer_callback_query(call.id)
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
-    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
+    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
+    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
     bot.send_message(call.message.chat.id, "⚙️ **Update Language:**", reply_markup=markup, parse_mode="Markdown")
 
 @bot.message_handler(commands=['language', 'settings'])
 def change_lang(m):
     if m.chat.type != 'private': return
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi"))
-    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en"))
+    markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
+    markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
     bot.send_message(m.chat.id, "⚙️ **Update Language:**", reply_markup=markup, parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
