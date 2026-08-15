@@ -153,7 +153,6 @@ active_polls = {}
 def build_quiz_tree(admin_lang='hi'):
     tree = {}
     for doc in db_data.get('questions', []):
-        # Filter by Admin's Language so Hindi/English don't mix!
         if doc.get('medium', 'hi') != admin_lang:
             continue
             
@@ -163,10 +162,7 @@ def build_quiz_tree(admin_lang='hi'):
         current = tree
         for raw_p in path:
             p_str = raw_p.strip()
-            
-            # Merge "class 12" and "Class 12" into one clean name
-            if p_str.lower() == 'class 12':
-                p_str = 'Class 12'
+            if p_str.lower() == 'class 12': p_str = 'Class 12'
                 
             matched_key = p_str
             for existing_key in current.keys():
@@ -174,8 +170,7 @@ def build_quiz_tree(admin_lang='hi'):
                     matched_key = existing_key
                     break
                     
-            if matched_key not in current:
-                current[matched_key] = {}
+            if matched_key not in current: current[matched_key] = {}
             current = current[matched_key]
             
         current['_is_leaf'] = True
@@ -207,13 +202,12 @@ def setup_group_quiz(m):
     try:
         member = bot.get_chat_member(m.chat.id, m.from_user.id)
         if member.status not in ['administrator', 'creator'] and str(m.from_user.id) != str(ADMIN_ID):
-            return bot.reply_to(m, "⚠️ **Only Group Admins can start a quiz!**", parse_mode="Markdown")
+            return bot.reply_to(m, "⚠️ **Only Group Admins can start a quiz!**", parse_mode="HTML")
     except: pass
 
     if m.chat.id in active_group_quizzes:
         return bot.reply_to(m, "⚠️ A quiz is already running in this group! Stop it using /stopquiz")
 
-    # Get Admin's language preference
     admin_id = str(m.from_user.id)
     admin_lang = db_data['users'].get(admin_id, {}).get('medium', 'hi')
 
@@ -249,10 +243,10 @@ def show_nav_menu(chat_id, message_id=None, is_new=False):
         markup.add(InlineKeyboardButton("🔙 Back", callback_data="gq_action_back", style="success"))
         
     path_str = " ➔ ".join(session['nav_path']) if session['nav_path'] else "Root Directory"
-    text = f"⚙️ **GROUP QUIZ SETUP**\n\n📂 **Path:** `{path_str}`\n*Choose a folder to open:*", 
+    text = f"⚙️ <b>GROUP QUIZ SETUP</b>\n\n📂 <b>Path:</b> <code>{path_str}</code>\n<i>Choose a folder to open:</i>", 
     
-    if is_new: bot.send_message(chat_id, text[0], reply_markup=markup, parse_mode="Markdown")
-    else: bot.edit_message_text(text[0], chat_id, message_id, reply_markup=markup, parse_mode="Markdown")
+    if is_new: bot.send_message(chat_id, text[0], reply_markup=markup, parse_mode="HTML")
+    else: bot.edit_message_text(text[0], chat_id, message_id, reply_markup=markup, parse_mode="HTML")
 
 def show_count_menu(chat_id, message_id):
     session = group_setup_sessions[chat_id]
@@ -272,8 +266,8 @@ def show_count_menu(chat_id, message_id):
     if row: markup.row(*row)
         
     markup.add(InlineKeyboardButton("🔙 Back to Folders", callback_data="gq_action_back", style="danger"))
-    text = f"⚙️ **Step 2:** Number of Questions\n\n📚 **Topic:** {session['topic_name']}\n📊 **Total Available:** {total_qs} Questions"
-    bot.edit_message_text(text, chat_id, message_id, reply_markup=markup, parse_mode="Markdown")
+    text = f"⚙️ <b>Step 2:</b> Number of Questions\n\n📚 <b>Topic:</b> {session['topic_name']}\n📊 <b>Total Available:</b> {total_qs} Questions"
+    bot.edit_message_text(text, chat_id, message_id, reply_markup=markup, parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("gq_"))
 def handle_group_setup(call):
@@ -323,11 +317,11 @@ def handle_group_setup(call):
         markup = InlineKeyboardMarkup()
         markup.row(InlineKeyboardButton("15s", callback_data="gq_time_15", style="primary"), InlineKeyboardButton("30s", callback_data="gq_time_30", style="primary"))
         markup.row(InlineKeyboardButton("45s", callback_data="gq_time_45", style="primary"), InlineKeyboardButton("60s", callback_data="gq_time_60", style="primary"))
-        bot.edit_message_text(f"⚙️ **Step 3:** Time per Question:\n\n📚 **Topic:** {session['topic_name']}\n🔢 **Questions:** {session['count']}", chat_id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text(f"⚙️ <b>Step 3:</b> Time per Question:\n\n📚 <b>Topic:</b> {session['topic_name']}\n🔢 <b>Questions:</b> {session['count']}", chat_id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
 
     elif action.startswith("gq_time_"):
         session['time'] = int(action.split("_")[2])
-        bot.edit_message_text("🚀 **Preparing Quiz Engine...**", chat_id, call.message.message_id, parse_mode="Markdown")
+        bot.edit_message_text("🚀 <b>Preparing Quiz Engine...</b>", chat_id, call.message.message_id, parse_mode="HTML")
         start_group_quiz(chat_id)
 
 def start_group_quiz(chat_id):
@@ -342,17 +336,19 @@ def start_group_quiz(chat_id):
         "questions": final_qs, "current_idx": 0, "timer": session['time'], "scores": {}, "topic_name": session['topic_name']
     }
 
-    msg = f"📣 **GROUP QUIZ STARTING!** 📣\n\n📚 **Topic:** {session['topic_name']}\n🔢 **Total Questions:** {len(final_qs)}\n⏱ **Time Per Question:** {session['time']}s\n\n⚠️ *Polls are Non-Anonymous to track scores! Get Ready!*"
-    bot.send_message(chat_id, msg, parse_mode="Markdown")
-    time.sleep(3)
-    send_next_group_question(chat_id)
+    msg = f"📣 <b>GROUP QUIZ STARTING!</b> 📣\n\n📚 <b>Topic:</b> {session['topic_name']}\n🔢 <b>Total Questions:</b> {len(final_qs)}\n⏱ <b>Time Per Question:</b> {session['time']}s\n\n⚠️ <i>Polls are Non-Anonymous to track scores! Get Ready!</i>"
+    bot.send_message(chat_id, msg, parse_mode="HTML")
+    
+    # Threading timer ka use kiya jisse bot atak na jaaye 
+    threading.Timer(3.0, send_next_group_question, args=[chat_id]).start()
 
 def send_next_group_question(chat_id):
     if chat_id not in active_group_quizzes: return
     quiz = active_group_quizzes[chat_id]
     idx = quiz['current_idx']
 
-    if idx >= len(quiz['questions']): return finish_group_quiz(chat_id)
+    if idx >= len(quiz['questions']): 
+        return finish_group_quiz(chat_id)
 
     q = quiz['questions'][idx]
     q_text = f"📝 Question {idx + 1}/{len(quiz['questions'])}\n\n{q['q']}"
@@ -397,20 +393,26 @@ def finish_group_quiz(chat_id):
     quiz = active_group_quizzes.pop(chat_id)
     sorted_users = sorted(quiz['scores'].values(), key=lambda x: x['score'], reverse=True)
 
-    msg = f"🏁 **GROUP QUIZ FINISHED!** 🏁\n📚 **Topic:** {quiz['topic_name']} | ⏱ **Time:** {quiz['timer']}s/Q\n\n🏆 **FINAL LEADERBOARD** 🏆\n"
-    if not sorted_users: msg += "\n*Nobody scored any points!* 🥺"
+    msg = f"🏁 <b>GROUP QUIZ FINISHED!</b> 🏁\n📚 <b>Topic:</b> {quiz['topic_name']} | ⏱ <b>Time:</b> {quiz['timer']}s/Q\n\n🏆 <b>FINAL LEADERBOARD</b> 🏆\n"
+    if not sorted_users: msg += "\n<i>Nobody scored any points!</i> 🥺"
     else:
         medals = ["🥇", "🥈", "🥉"]
         for i, u in enumerate(sorted_users[:10]):
-            if i < 3: msg += f"{medals[i]} **{u['name']}** - {u['score']} Points {'🔥 *(Unstoppable!)*' if i==0 else '⚡'}\n"
-            else: msg += f" {i+1}️⃣ {u['name']} - {u['score']} Points\n"
+            # Name sanitization: Taaki special characters error na de
+            safe_name = u['name'].replace('<', '').replace('>', '').replace('&', '')
+            if i < 3: msg += f"{medals[i]} <b>{safe_name}</b> - {u['score']} Points {'🔥 <i>(Unstoppable!)</i>' if i==0 else '⚡'}\n"
+            else: msg += f" {i+1}️⃣ <b>{safe_name}</b> - {u['score']} Points\n"
 
-    msg += f"\n🤖 *Practice more? Start bot:* @{CLEAN_BOT_USERNAME}"
+    msg += f"\n🤖 <i>Practice more? Start bot:</i> @{CLEAN_BOT_USERNAME}"
     
     keys_to_delete = [pid for pid, data in active_polls.items() if data['chat_id'] == chat_id]
     for k in keys_to_delete: active_polls.pop(k, None)
 
-    bot.send_message(chat_id, msg, parse_mode="Markdown")
+    try:
+        bot.send_message(chat_id, msg, parse_mode="HTML")
+    except Exception as e:
+        print(f"Leaderboard send error: {e}")
+        bot.send_message(chat_id, "🏁 Quiz finished! (Leaderboard display error).")
 
 # ============================
 # 🤖 BOT HANDLERS (Private Chat)
@@ -452,7 +454,7 @@ def start(m):
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
         markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
-        bot.send_message(m.chat.id, "🌐 **Choose your Language:**", reply_markup=markup, parse_mode="Markdown")
+        bot.send_message(m.chat.id, "🌐 <b>Choose your Language:</b>", reply_markup=markup, parse_mode="HTML")
         return
     send_welcome_menu(m.chat.id, m.from_user.first_name, uid, user['medium'])
 
@@ -473,7 +475,7 @@ def show_lang_menu_callback(call):
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
     markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
-    bot.send_message(call.message.chat.id, "⚙️ **Update Language:**", reply_markup=markup, parse_mode="Markdown")
+    bot.send_message(call.message.chat.id, "⚙️ <b>Update Language:</b>", reply_markup=markup, parse_mode="HTML")
 
 @bot.message_handler(commands=['language', 'settings'])
 def change_lang(m):
@@ -481,7 +483,7 @@ def change_lang(m):
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("🇮🇳 Hindi Medium", callback_data="lang_hi", style="success"))
     markup.add(InlineKeyboardButton("🇬🇧 English Medium", callback_data="lang_en", style="primary"))
-    bot.send_message(m.chat.id, "⚙️ **Update Language:**", reply_markup=markup, parse_mode="Markdown")
+    bot.send_message(m.chat.id, "⚙️ <b>Update Language:</b>", reply_markup=markup, parse_mode="HTML")
 
 @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
 def callback_check(call):
@@ -504,9 +506,9 @@ def admin_commands(message):
         success, blocked = 0, 0
         status_msg = bot.reply_to(message, f"🚀 Broadcasting to {len(users)} users...")
         for user in users:
-            try: bot.send_message(user['_id'], f"📢 **ANNOUNCEMENT**\n\n{msg_text[1]}", parse_mode="Markdown"); success += 1; time.sleep(0.1) 
+            try: bot.send_message(user['_id'], f"📢 <b>ANNOUNCEMENT</b>\n\n{msg_text[1]}", parse_mode="HTML"); success += 1; time.sleep(0.1) 
             except: blocked += 1
-        bot.edit_message_text(f"✅ **Broadcast Complete!**\n\nSent: {success}\nFailed: {blocked}", message.chat.id, status_msg.message_id)
+        bot.edit_message_text(f"✅ <b>Broadcast Complete!</b>\n\nSent: {success}\nFailed: {blocked}", message.chat.id, status_msg.message_id, parse_mode="HTML")
         
     elif message.text.startswith('/backup'):
         bot.send_message(message.chat.id, "⏳ Creating Backup...")
@@ -527,7 +529,7 @@ def handle_docs(message):
         
         if message.caption == '/restore' and message.document.file_name.endswith('.json'):
             global db_data; db_data = json.loads(content); save_db(db_data)
-            return bot.reply_to(message, "✅ **Restore Successful!**")
+            return bot.reply_to(message, "✅ <b>Restore Successful!</b>", parse_mode="HTML")
         
         meta, parsed_q = parse_txt_file(content)
         if not meta: return bot.reply_to(message, parsed_q) 
