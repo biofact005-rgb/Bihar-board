@@ -75,11 +75,20 @@ def post_random_group_question():
 
     if not en_questions: return
     q = random.choice(en_questions)
+    
+    # Text length sanitizer for background tasks
     q_text = "🎯 𝗕𝗦𝗘𝗕 𝗗𝗮𝗶𝗹𝘆 𝗣𝗿𝗮𝗰𝘁𝗶𝗰𝗲:\n\n" + q['q']
     if len(q_text) > 300: q_text = q_text[:295] + "..."
+    
+    safe_opts = []
+    for opt in q['opts']:
+        opt_str = str(opt).strip()
+        if not opt_str: opt_str = "-"
+        if len(opt_str) > 100: opt_str = opt_str[:97] + "..."
+        safe_opts.append(opt_str)
 
     try:
-        msg = bot.send_poll(chat_id=GROUP_ID, question=q_text, options=q['opts'], type='quiz', correct_option_id=q['ans'], is_anonymous=True, explanation=f"Practice more: {BOT_USERNAME}")
+        msg = bot.send_poll(chat_id=GROUP_ID, question=q_text, options=safe_opts, type='quiz', correct_option_id=q['ans'], is_anonymous=True, explanation=f"Practice more: {BOT_USERNAME}")
         last_poll_msg_id = msg.message_id
     except Exception as e: print(f"Group Poll Send Error: {e}")
 
@@ -339,7 +348,6 @@ def start_group_quiz(chat_id):
     msg = f"📣 <b>GROUP QUIZ STARTING!</b> 📣\n\n📚 <b>Topic:</b> {session['topic_name']}\n🔢 <b>Total Questions:</b> {len(final_qs)}\n⏱ <b>Time Per Question:</b> {session['time']}s\n\n⚠️ <i>Polls are Non-Anonymous to track scores! Get Ready!</i>"
     bot.send_message(chat_id, msg, parse_mode="HTML")
     
-    # Threading timer ka use kiya jisse bot atak na jaaye 
     threading.Timer(3.0, send_next_group_question, args=[chat_id]).start()
 
 def send_next_group_question(chat_id):
@@ -351,16 +359,27 @@ def send_next_group_question(chat_id):
         return finish_group_quiz(chat_id)
 
     q = quiz['questions'][idx]
+    
+    # ⚠️ FIX: Text length sanitizer
     q_text = f"📝 Question {idx + 1}/{len(quiz['questions'])}\n\n{q['q']}"
     if len(q_text) > 300: q_text = q_text[:295] + "..."
 
+    # ⚠️ FIX: Options Length & Empty Option Sanitizer
+    safe_opts = []
+    for opt in q['opts']:
+        opt_str = str(opt).strip()
+        if not opt_str: opt_str = "-" # Fallback if option is somehow blank
+        if len(opt_str) > 100: opt_str = opt_str[:97] + "..."
+        safe_opts.append(opt_str)
+
     try:
-        msg = bot.send_poll(chat_id=chat_id, question=q_text, options=q['opts'], type='quiz', correct_option_id=q['ans'], is_anonymous=False, open_period=quiz['timer'])
+        msg = bot.send_poll(chat_id=chat_id, question=q_text, options=safe_opts, type='quiz', correct_option_id=q['ans'], is_anonymous=False, open_period=quiz['timer'])
         active_polls[msg.poll.id] = {"chat_id": chat_id, "correct_id": q['ans']}
         quiz['current_idx'] += 1
         threading.Timer(quiz['timer'] + 2.0, send_next_group_question, args=[chat_id]).start()
-    except Exception:
-        bot.send_message(chat_id, "❌ Error sending question. Ending quiz.")
+    except Exception as e:
+        print(f"POLL SEND ERROR in Group {chat_id}: {e}") # Isse backend me exact error aayega
+        bot.send_message(chat_id, f"❌ Error sending a specific question (Probably too long). Ending quiz prematurely to save progress.")
         finish_group_quiz(chat_id)
 
 @bot.poll_answer_handler()
@@ -398,7 +417,6 @@ def finish_group_quiz(chat_id):
     else:
         medals = ["🥇", "🥈", "🥉"]
         for i, u in enumerate(sorted_users[:10]):
-            # Name sanitization: Taaki special characters error na de
             safe_name = u['name'].replace('<', '').replace('>', '').replace('&', '')
             if i < 3: msg += f"{medals[i]} <b>{safe_name}</b> - {u['score']} Points {'🔥 <i>(Unstoppable!)</i>' if i==0 else '⚡'}\n"
             else: msg += f" {i+1}️⃣ <b>{safe_name}</b> - {u['score']} Points\n"
@@ -408,8 +426,7 @@ def finish_group_quiz(chat_id):
     keys_to_delete = [pid for pid, data in active_polls.items() if data['chat_id'] == chat_id]
     for k in keys_to_delete: active_polls.pop(k, None)
 
-    try:
-        bot.send_message(chat_id, msg, parse_mode="HTML")
+    try: bot.send_message(chat_id, msg, parse_mode="HTML")
     except Exception as e:
         print(f"Leaderboard send error: {e}")
         bot.send_message(chat_id, "🏁 Quiz finished! (Leaderboard display error).")
